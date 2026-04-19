@@ -5,6 +5,16 @@ Built for loan collection reminders with a Next.js dashboard for call dispatchin
 
 ---
 
+## Demo Video
+
+<video src="https://github.com/shadabshamim-collab/LivekitAIVoice/releases/download/v1.0.0/demo.mp4" controls width="100%"></video>
+
+> The demo shows the full flow: dispatching a call from the dashboard, the AI agent greeting the customer in Hinglish, handling the EMI reminder conversation, and presenting payment options.
+>
+> If the video doesn't play inline: **[Download Demo Video (.mp4)](https://github.com/shadabshamim-collab/LivekitAIVoice/releases/download/v1.0.0/demo.mp4)** | **[Original Recording (.mov)](https://github.com/shadabshamim-collab/LivekitAIVoice/releases/download/v1.0.0/demo.mov)**
+
+---
+
 ## Technical Architecture
 
 ```
