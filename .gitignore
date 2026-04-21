@@ -22,6 +22,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Eval results (generated)
+evals/results/*.json
+
+# Call log data
+dashboard/data/
+
 # IDE settings
 .vscode/
 .idea/
