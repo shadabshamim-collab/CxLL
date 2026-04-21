@@ -3,7 +3,11 @@ Judge LLM that scores voicebot conversations against a rubric.
 """
 
 import json
+import ssl
+import certifi
 import aiohttp
+
+SSL_CTX = ssl.create_default_context(cafile=certifi.where())
 
 SCORING_RUBRIC = """You are an expert QA evaluator for an AI voice agent used in loan collection calls.
 You will receive:
@@ -135,7 +139,7 @@ Guardrails Tested: {', '.join(persona['expected_outcomes']['guardrails_tested'])
 Score this conversation according to the rubric."""
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=SSL_CTX)) as session:
             resp = await session.post(
                 f"{base_url}/chat/completions",
                 json={

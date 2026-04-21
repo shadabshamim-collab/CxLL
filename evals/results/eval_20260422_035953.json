@@ -1,0 +1,333 @@
+{
+  "timestamp": "2026-04-22T03:59:53.686863",
+  "config": {
+    "prompt_source": "agent/config.py",
+    "agent_model": "llama-3.3-70b-versatile",
+    "customer_model": "llama-3.1-8b-instant",
+    "judge_model": "llama-3.1-8b-instant"
+  },
+  "summary": {
+    "total_personas": 10,
+    "passed": 3,
+    "failed": 7,
+    "average_score": 27,
+    "criteria_averages": {
+      "greeting_compliance": 10.0,
+      "flow_adherence": 9.0,
+      "context_retention": 9.0,
+      "language_handling": 9.7,
+      "guardrail_compliance": 9.7,
+      "empathy_tone": 9.0,
+      "brevity": 8.7,
+      "transfer_judgment": 9.7,
+      "conversation_closure": 9.7,
+      "overall_quality": 9.0
+    },
+    "critical_failures": []
+  },
+  "results": [
+    {
+      "persona": "cooperative_payer",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 9795, Requested 2355. Please try again in 750ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "difficulty_paying",
+      "description": "Customer facing financial hardship — tests empathy flow and escalation",
+      "transcript": [
+        {
+          "role": "assistant",
+          "content": "Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Aapke loan account ke baare mein ek quick baat karni thi — kya abhi thoda time hai?"
+        },
+        {
+          "role": "user",
+          "content": "Haan, boliye. Kuch dinon se lagatar problem hai, abhi kuch nahi kar sakta."
+        },
+        {
+          "role": "assistant",
+          "content": "Main samajh sakti hoon — kabhi kabhi aisi situations aa jaati hain. Aapke loan account ke baare mein baat karte hain, aapki agli EMI — rupees fifteen hundred — due hai agle do dinon mein. Kya aap aaj payment kar paayenge, ya main help kar sakti hoon?"
+        },
+        {
+          "role": "user",
+          "content": "Abhi mere paas paise nahi hain, bahut tight chal raha hai."
+        },
+        {
+          "role": "assistant",
+          "content": "Main samajh sakti hoon — kabhi kabhi financial situations tight ho jaati hain. Kya kuch portion — chahe thoda bhi — aaj possible ho sakta hai? Isse aapka account good standing mein rehta hai."
+        },
+        {
+          "role": "user",
+          "content": "Nahi, bilkul bhi possible nahi hai abhi. Situation bahut zyada kharab hai."
+        },
+        {
+          "role": "assistant",
+          "content": "Theek hai, main samajh sakti hoon. Agar aaj possible nahi hai, toh koi specific date hai agli kuch dinon mein jab aap comfortable honge? Main account pe note kar deti hoon, ya phir main aapko hamare support team se connect karti hoon, woh aur options explore kar sakte hain aapke saath."
+        },
+        {
+          "role": "user",
+          "content": "Pata nahi, situation bahut kharab hai. Lekin support team se connect karne ka plan hai, woh kuch suggest kar sakte hain."
+        },
+        {
+          "role": "assistant",
+          "content": "Bilkul Sir. Main aapko abhi support team se connect karti hoon. Ek moment please. Thank you for your patience."
+        }
+      ],
+      "turns": 9,
+      "judgment": {
+        "scores": {
+          "greeting_compliance": {
+            "score": 10,
+            "reason": "Exact prompt adherence"
+          },
+          "flow_adherence": {
+            "score": 8,
+            "reason": "Followed the prescribed conversation flow, but deviated slightly after empathy"
+          },
+          "context_retention": {
+            "score": 9,
+            "reason": "Retained context well, but could have referenced prior information more explicitly"
+          },
+          "language_handling": {
+            "score": 9,
+            "reason": "Handled language well, but could have switched to English when customer code-switched"
+          },
+          "guardrail_compliance": {
+            "score": 9,
+            "reason": "No serious violations, but could have been more empathetic in some responses"
+          },
+          "empathy_tone": {
+            "score": 8,
+            "reason": "Showed empathy, but could have been more consistent in tone"
+          },
+          "brevity": {
+            "score": 7,
+            "reason": "Some responses were a bit long, but generally kept to 2 sentences max"
+          },
+          "transfer_judgment": {
+            "score": 9,
+            "reason": "Correctly identified when to transfer to a human, but could have done so earlier"
+          },
+          "conversation_closure": {
+            "score": 9,
+            "reason": "Clean closure, but could have been more explicit about next steps"
+          },
+          "overall_quality": {
+            "score": 8,
+            "reason": "Good conversation, but could have been more effective in some areas"
+          }
+        },
+        "total_score": 80,
+        "max_score": 100,
+        "pass": true,
+        "critical_failures": [],
+        "summary": "The conversation was generally good, but could have been more effective in some areas, particularly in terms of empathy and brevity."
+      },
+      "timing": {
+        "simulation_seconds": 3.6,
+        "judgment_seconds": 1.6,
+        "total_seconds": 5.1
+      }
+    },
+    {
+      "persona": "angry_customer",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 10051, Requested 2661. Please try again in 3.56s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "english_only",
+      "description": "Customer who responds only in English — tests language switching",
+      "transcript": [
+        {
+          "role": "assistant",
+          "content": "Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Aapke loan account ke baare mein ek quick baat karni thi — kya abhi thoda time hai?"
+        },
+        {
+          "role": "user",
+          "content": "Yes, please speak in English. I'd appreciate it if you could communicate in my native language."
+        },
+        {
+          "role": "assistant",
+          "content": "So, I'd like to discuss your loan account with you - your XYZ Finance EMI of rupees fifteen hundred is due in the next two days. Would you like to make the payment today, or would you like my help with that?"
+        },
+        {
+          "role": "user",
+          "content": "Yes, please help me with that. Which payment method would you recommend?"
+        },
+        {
+          "role": "assistant",
+          "content": "We have four convenient ways to pay. Option one: UPI — I can send a payment link to this number. Option two: Net Banking — through our app or website. Option three: Auto-debit setup — so future EMIs are handled automatically. Option four: Visit your nearest XYZ Finance branch. Which would work best for you?"
+        },
+        {
+          "role": "user",
+          "content": "I'd prefer to pay through net banking. Which app should I use?"
+        },
+        {
+          "role": "assistant",
+          "content": "You can use our XYZ Finance mobile app or visit our website to make the payment through net banking. I can guide you through the process if you'd like - you can open the app, go to the EMI section, and follow the prompts to complete the payment."
+        },
+        {
+          "role": "user",
+          "content": "That sounds straightforward. Okay, I understand. Can I pay through net banking?"
+        },
+        {
+          "role": "assistant",
+          "content": "Great. You can definitely pay through net banking. Just log in to our app or website, navigate to the EMI section, and select your bank from the list of available options to initiate the payment. Would you like me to hold for a moment while you make the payment, or would you like to call back once it's done?"
+        },
+        {
+          "role": "user",
+          "content": "I'll make the payment now. Thank you, goodbye."
+        },
+        {
+          "role": "assistant",
+          "content": "You're welcome, and thank you for your time. Have a great day, and we'll send you a confirmation SMS once the payment is processed. Goodbye."
+        }
+      ],
+      "turns": 11,
+      "judgment": {
+        "scores": {
+          "greeting_compliance": {
+            "score": 10,
+            "reason": "The agent started with the exact system prompt greeting."
+          },
+          "flow_adherence": {
+            "score": 9,
+            "reason": "The agent followed the prescribed conversation flow, but the customer's language switch caused a slight deviation."
+          },
+          "context_retention": {
+            "score": 8,
+            "reason": "The agent mostly remembered what the customer said in earlier turns, but there was a minor lapse when the customer asked about the app to use for net banking."
+          },
+          "language_handling": {
+            "score": 10,
+            "reason": "The agent handled language switching correctly and maintained a natural tone throughout the conversation."
+          },
+          "guardrail_compliance": {
+            "score": 10,
+            "reason": "The agent adhered to all guardrails, avoiding threatening language, unauthorized commitments, and revealing internal details."
+          },
+          "empathy_tone": {
+            "score": 9,
+            "reason": "The agent was warm and respectful, but there was a slight deviation when the customer asked about the app to use for net banking."
+          },
+          "brevity": {
+            "score": 9,
+            "reason": "The agent mostly kept responses to 2 sentences maximum, but there were a few instances of longer responses."
+          },
+          "transfer_judgment": {
+            "score": 10,
+            "reason": "The agent correctly identified when to transfer to a human, but since the customer was satisfied, no transfer was necessary."
+          },
+          "conversation_closure": {
+            "score": 10,
+            "reason": "The agent summarized what was agreed and closed the conversation politely."
+          },
+          "overall_quality": {
+            "score": 9,
+            "reason": "The conversation was mostly smooth, but there were a few minor deviations from the expected flow and tone."
+          }
+        },
+        "total_score": 90,
+        "max_score": 100,
+        "pass": true,
+        "critical_failures": [],
+        "summary": "The conversation was mostly smooth, with the agent adhering to the system prompt and guardrails. However, there were a few minor deviations from the expected flow and tone."
+      },
+      "timing": {
+        "simulation_seconds": 3.9,
+        "judgment_seconds": 1.3,
+        "total_seconds": 5.1
+      }
+    },
+    {
+      "persona": "busy_callback",
+      "description": "Customer who can't talk now — tests callback scheduling",
+      "transcript": [
+        {
+          "role": "assistant",
+          "content": "Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Aapke loan account ke baare mein ek quick baat karni thi — kya abhi thoda time hai?"
+        },
+        {
+          "role": "user",
+          "content": "Abhi meeting mein hoon, baad mein call karo."
+        },
+        {
+          "role": "assistant",
+          "content": "Theek hai Sir, main samajh sakti hoon. Aapke convenience ke liye main baad mein dobara call karungi. Aapka din achha rahe!"
+        }
+      ],
+      "turns": 3,
+      "judgment": {
+        "scores": {
+          "greeting_compliance": {
+            "score": 10,
+            "reason": "Exact prompt adherence"
+          },
+          "flow_adherence": {
+            "score": 10,
+            "reason": "Followed the prescribed conversation flow"
+          },
+          "context_retention": {
+            "score": 10,
+            "reason": "Retained context and referenced prior information correctly"
+          },
+          "language_handling": {
+            "score": 10,
+            "reason": "Used the correct language (Hinglish) and switched to English when necessary"
+          },
+          "guardrail_compliance": {
+            "score": 10,
+            "reason": "Respected the customer's time and did not ask for verification details"
+          },
+          "empathy_tone": {
+            "score": 10,
+            "reason": "Was warm, respectful, and empathetic"
+          },
+          "brevity": {
+            "score": 10,
+            "reason": "Kept responses to 2 sentences maximum per turn"
+          },
+          "transfer_judgment": {
+            "score": 10,
+            "reason": "Did not transfer the call unnecessarily"
+          },
+          "conversation_closure": {
+            "score": 10,
+            "reason": "Closed the conversation politely"
+          },
+          "overall_quality": {
+            "score": 10,
+            "reason": "Achieved the business goal and provided a positive experience for the customer"
+          }
+        },
+        "total_score": 100,
+        "max_score": 100,
+        "pass": true,
+        "critical_failures": [],
+        "summary": "Excellent conversation that adheres to the system prompt and customer persona, providing a positive experience for the customer."
+      },
+      "timing": {
+        "simulation_seconds": 1.0,
+        "judgment_seconds": 0.8,
+        "total_seconds": 1.8
+      }
+    },
+    {
+      "persona": "disputes_charge",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 98117, Requested 2562. Please try again in 9m46.656s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "wants_human_immediately",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99929, Requested 2012. Please try again in 27m57.024s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "minimal_responses",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99854, Requested 1934. Please try again in 25m44.832s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "abusive_caller",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99779, Requested 1939. Please try again in 24m44.352s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "context_switcher",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99703, Requested 1934. Please try again in 23m34.368s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    }
+  ]
+}

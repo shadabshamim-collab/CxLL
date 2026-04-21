@@ -4,7 +4,11 @@ Produces a multi-turn transcript for the judge to evaluate.
 """
 
 import json
+import ssl
+import certifi
 import aiohttp
+
+SSL_CTX = ssl.create_default_context(cafile=certifi.where())
 
 
 async def _chat(
@@ -15,7 +19,7 @@ async def _chat(
     temperature: float = 0.4,
 ) -> str:
     """Single LLM chat completion call."""
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=SSL_CTX)) as session:
         resp = await session.post(
             f"{base_url}/chat/completions",
             json={

@@ -22,8 +22,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Eval results (generated)
-evals/results/*.json
+# Eval results (keep committed for reference)
 
 # Call log data
 dashboard/data/

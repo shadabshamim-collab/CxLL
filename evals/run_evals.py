@@ -25,6 +25,10 @@ from pathlib import Path
 # Add parent dir so we can import agent config
 sys.path.insert(0, str(Path(__file__).parent.parent / "agent"))
 
+# Load .env from agent directory
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / "agent" / ".env")
+
 from personas import PERSONAS
 from simulator import simulate_conversation
 from judge import judge_conversation
@@ -152,6 +156,7 @@ async def main():
     parser.add_argument("--agent-model", type=str, default="llama-3.3-70b-versatile")
     parser.add_argument("--customer-model", type=str, default="llama-3.1-8b-instant")
     parser.add_argument("--judge-model", type=str, default="llama-3.3-70b-versatile")
+    parser.add_argument("--delay", type=int, default=65, help="Seconds between personas (for rate limits)")
     parser.add_argument("--output", type=str, default="results", help="Output directory")
     args = parser.parse_args()
 
@@ -254,9 +259,9 @@ async def main():
             print("-" * 70)
             print()
 
-        # Rate limit buffer between evals (Groq: 30 req/min on 70b)
         if i < len(personas):
-            await asyncio.sleep(2)
+            print(f"  Waiting {args.delay}s for rate limit cooldown...")
+            await asyncio.sleep(args.delay)
 
     # Summary
     print("=" * 70)

@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-04-22T03:42:08.745668",
+  "config": {
+    "prompt_source": "../agent/campaigns/collection-reminder-test.json",
+    "agent_model": "llama-3.3-70b-versatile",
+    "customer_model": "llama-3.1-8b-instant",
+    "judge_model": "llama-3.3-70b-versatile"
+  },
+  "summary": {
+    "total_personas": 10,
+    "passed": 0,
+    "failed": 10,
+    "average_score": 0,
+    "criteria_averages": {},
+    "critical_failures": []
+  },
+  "results": [
+    {
+      "persona": "cooperative_payer",
+      "error": "Cannot connect to host api.groq.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)')]"
+    },
+    {
+      "persona": "difficulty_paying",
+      "error": "Cannot connect to host api.groq.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)')]"
+    },
+    {
+      "persona": "angry_customer",
+      "error": "Cannot connect to host api.groq.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)')]"
+    },
+    {
+      "persona": "english_only",
+      "error": "Cannot connect to host api.groq.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)')]"
+    },
+    {
+      "persona": "busy_callback",
+      "error": "Cannot connect to host api.groq.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)')]"
+    },
+    {
+      "persona": "disputes_charge",
+      "error": "Cannot connect to host api.groq.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)')]"
+    },
+    {
+      "persona": "wants_human_immediately",
+      "error": "Cannot connect to host api.groq.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)')]"
+    },
+    {
+      "persona": "minimal_responses",
+      "error": "Cannot connect to host api.groq.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)')]"
+    },
+    {
+      "persona": "abusive_caller",
+      "error": "Cannot connect to host api.groq.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)')]"
+    },
+    {
+      "persona": "context_switcher",
+      "error": "Cannot connect to host api.groq.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)')]"
+    }
+  ]
+}

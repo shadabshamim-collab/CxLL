@@ -1,0 +1,106 @@
+{
+  "timestamp": "2026-04-22T03:45:45.355217",
+  "config": {
+    "prompt_source": "../agent/campaigns/collection-reminder-test.json",
+    "agent_model": "llama-3.3-70b-versatile",
+    "customer_model": "llama-3.1-8b-instant",
+    "judge_model": "llama-3.3-70b-versatile"
+  },
+  "summary": {
+    "total_personas": 10,
+    "passed": 0,
+    "failed": 9,
+    "average_score": 0,
+    "criteria_averages": {},
+    "critical_failures": []
+  },
+  "results": [
+    {
+      "persona": "cooperative_payer",
+      "description": "Happy customer who agrees to pay via UPI — tests golden path flow",
+      "transcript": [
+        {
+          "role": "assistant",
+          "content": "Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Aapke loan account ke baare mein ek quick baat karni thi — kya abhi thoda time hai?"
+        },
+        {
+          "role": "user",
+          "content": "Haan bolo, kya hai?"
+        },
+        {
+          "role": "assistant",
+          "content": "Toh Sir, aapki XYZ Finance EMI — rupees fifteen hundred — due hai agle do dinon mein. Kya aap aaj payment kar paayenge, ya main help kar sakti hoon?"
+        },
+        {
+          "role": "user",
+          "content": "Haan, main aaj hi payment kar dunga."
+        },
+        {
+          "role": "assistant",
+          "content": "Payment ke liye hamare paas char options hain. Option one: UPI — main aapke is number pe ek payment link bhej sakti hoon."
+        },
+        {
+          "role": "user",
+          "content": "UPI chunna chahiye, payment link mera number pe aayega na?"
+        },
+        {
+          "role": "assistant",
+          "content": "Haan Sir, bilkul. Main abhi link bhej rahi hoon — aapko paanch minute mein SMS aa jaayega, uspe click karke aap payment complete kar sakte hain."
+        },
+        {
+          "role": "user",
+          "content": "Theek hai, dhanyavad!"
+        },
+        {
+          "role": "assistant",
+          "content": "Aapka swagat hai Sir. Toh Sir, just to confirm — aapko UPI payment link SMS ke through mil jaayega. Confirmation SMS bhi aa jaayega. Koi aur help chahiye toh humein call kar saktey hain. Have a great day!"
+        }
+      ],
+      "turns": 9,
+      "judgment": {
+        "error": "Judge API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 11913, Requested 1813. Please try again in 8.63s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+      },
+      "timing": {
+        "simulation_seconds": 3.6,
+        "judgment_seconds": 0.0,
+        "total_seconds": 3.7
+      }
+    },
+    {
+      "persona": "difficulty_paying",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 11503, Requested 2089. Please try again in 7.959999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "angry_customer",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 11094, Requested 2088. Please try again in 5.91s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "english_only",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 10686, Requested 2105. Please try again in 3.955s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "busy_callback",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 10277, Requested 2088. Please try again in 1.825s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "disputes_charge",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 11870, Requested 2173. Please try again in 10.215s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "wants_human_immediately",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 11448, Requested 2089. Please try again in 7.685s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "minimal_responses",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 11038, Requested 2089. Please try again in 5.635s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "abusive_caller",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 10628, Requested 2105. Please try again in 3.665s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    },
+    {
+      "persona": "context_switcher",
+      "error": "API error 429: {\"error\":{\"message\":\"Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k7q0h444f5ssm6d5ngfjk2bk` service tier `on_demand` on tokens per minute (TPM): Limit 12000, Used 10216, Requested 2105. Please try again in 1.605s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+    }
+  ]
+}
