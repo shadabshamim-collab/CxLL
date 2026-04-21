@@ -1,0 +1,9 @@
+services:
+  voice-agent:
+    build: ./agent
+    restart: unless-stopped
+    env_file:
+      - ./agent/.env
+    volumes:
+      - ./agent:/app # For development/hot-reload (remove in prod)
+    network_mode: host # Recommended for WebRTC/Voice low latency
