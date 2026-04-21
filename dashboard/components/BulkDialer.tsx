@@ -1,20 +1,63 @@
 "use client";
 
-import { useState } from 'react';
-import { Users, FileText, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Users, FileText, Loader2, CheckCircle, AlertCircle, Megaphone, Upload } from 'lucide-react';
+
+interface Campaign {
+    id: string;
+    name: string;
+    description: string;
+    status: string;
+    model_provider: string;
+    voice_id: string;
+}
 
 export default function BulkDialer() {
     const [input, setInput] = useState('');
     const [prompt, setPrompt] = useState('');
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [results, setResults] = useState<any[]>([]);
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [selectedCampaignId, setSelectedCampaignId] = useState('');
+
+    useEffect(() => {
+        fetch('/api/campaigns?status=active')
+            .then(res => res.json())
+            .then(data => setCampaigns(data.campaigns || []))
+            .catch(() => {});
+    }, []);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
+
+    const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target?.result as string;
+            const numbers: string[] = [];
+            for (const line of text.split('\n')) {
+                for (const col of line.split(',')) {
+                    const cleaned = col.trim().replace(/["\s]/g, '');
+                    if (cleaned.match(/^\+?\d{10,15}$/)) {
+                        numbers.push(cleaned);
+                    }
+                }
+            }
+            if (numbers.length > 0) {
+                setInput(prev => prev ? prev + '\n' + numbers.join('\n') : numbers.join('\n'));
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
 
     const handleBulkDispatch = async (e: React.FormEvent) => {
         e.preventDefault();
         setStatus('loading');
         setResults([]);
 
-        // Parse comma or newline separated numbers
         const numbers = input.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0);
 
         if (numbers.length === 0) {
@@ -26,7 +69,13 @@ export default function BulkDialer() {
             const res = await fetch('/api/queue', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ numbers, prompt }),
+                body: JSON.stringify({
+                    numbers,
+                    prompt,
+                    campaignId: selectedCampaignId || undefined,
+                    modelProvider: selectedCampaign?.model_provider,
+                    voice: selectedCampaign?.voice_id,
+                }),
             });
 
             const data = await res.json();
@@ -55,27 +104,62 @@ export default function BulkDialer() {
                 </div>
 
                 <form onSubmit={handleBulkDispatch} className="space-y-6">
+                    {/* Campaign Selector */}
                     <div className="space-y-2">
                         <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
-                            <Users className="w-4 h-4" /> Phone Numbers (CSV or Newline)
+                            <Megaphone className="w-4 h-4" /> Campaign
+                        </label>
+                        <select
+                            value={selectedCampaignId}
+                            onChange={(e) => setSelectedCampaignId(e.target.value)}
+                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-green-500"
+                        >
+                            <option value="">Custom (No Campaign)</option>
+                            {campaigns.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                        {selectedCampaign && (
+                            <div className="flex gap-2 text-xs text-gray-500">
+                                <span className="px-2 py-0.5 bg-white/5 rounded">{selectedCampaign.model_provider}</span>
+                                <span className="px-2 py-0.5 bg-white/5 rounded">{selectedCampaign.voice_id}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
+                            <Users className="w-4 h-4" /> Phone Numbers
                         </label>
                         <textarea
                             placeholder="+919876543210&#10;+919988776655&#10;+12125551234"
                             required
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300 h-32 resize-none font-mono text-sm"
+                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300 h-28 resize-none font-mono text-sm"
                         />
-                        <p className="text-xs text-gray-500 text-right">Separate by comma or new line</p>
+                        <div className="flex items-center justify-between">
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1 transition-colors"
+                            >
+                                <Upload className="w-3 h-3" /> Upload CSV
+                            </button>
+                            <input ref={fileInputRef} type="file" accept=".csv,.txt" onChange={handleCSVUpload} className="hidden" />
+                            <p className="text-xs text-gray-500">
+                                {input.split(/[\n,]+/).filter(s => s.trim()).length || 0} numbers
+                            </p>
+                        </div>
                     </div>
 
                     <div className="space-y-2">
                         <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
-                            <FileText className="w-4 h-4" /> Campaign Context
+                            <FileText className="w-4 h-4" /> {selectedCampaignId ? 'Additional Instructions (Optional)' : 'Campaign Context'}
                         </label>
                         <input
                             type="text"
-                            placeholder="e.g. Survey about recent purchase..."
+                            placeholder={selectedCampaignId ? "e.g. Focus on premium customers..." : "e.g. Survey about recent purchase..."}
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300"

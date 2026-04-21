@@ -7,7 +7,7 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
 from dotenv import load_dotenv
 from livekit import api
 
-load_dotenv(".env")
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from livekit.protocol.sip import ListSIPOutboundTrunkRequest
 

@@ -1,13 +1,34 @@
 "use client";
 
-import { useState } from 'react';
-import { Phone, MessageSquare, Loader2, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Phone, MessageSquare, Loader2, Sparkles, Megaphone } from 'lucide-react';
+
+interface Campaign {
+    id: string;
+    name: string;
+    description: string;
+    status: string;
+    model_provider: string;
+    voice_id: string;
+    language: string;
+}
 
 export default function CallDispatcher() {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [prompt, setPrompt] = useState('');
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState('');
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [selectedCampaignId, setSelectedCampaignId] = useState('');
+
+    useEffect(() => {
+        fetch('/api/campaigns?status=active')
+            .then(res => res.json())
+            .then(data => setCampaigns(data.campaigns || []))
+            .catch(() => {});
+    }, []);
+
+    const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
 
     const handleDispatch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -22,14 +43,21 @@ export default function CallDispatcher() {
             const res = await fetch('/api/dispatch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phoneNumber, prompt, modelProvider, voice }),
+                body: JSON.stringify({
+                    phoneNumber,
+                    prompt,
+                    modelProvider,
+                    voice,
+                    campaignId: selectedCampaignId || undefined,
+                }),
             });
 
             const data = await res.json();
 
             if (res.ok) {
                 setStatus('success');
-                setMessage(`Call dispatched to ${phoneNumber}`);
+                const campaignLabel = selectedCampaign ? ` [${selectedCampaign.name}]` : '';
+                setMessage(`Call dispatched to ${phoneNumber}${campaignLabel}`);
             } else {
                 setStatus('error');
                 setMessage(data.error || 'Failed to dispatch call');
@@ -54,6 +82,26 @@ export default function CallDispatcher() {
                 </div>
 
                 <form onSubmit={handleDispatch} className="space-y-6">
+                    {/* Campaign Selector */}
+                    <div className="space-y-2">
+                        <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
+                            <Megaphone className="w-4 h-4" /> Campaign
+                        </label>
+                        <select
+                            value={selectedCampaignId}
+                            onChange={(e) => setSelectedCampaignId(e.target.value)}
+                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500"
+                        >
+                            <option value="">Custom (No Campaign)</option>
+                            {campaigns.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                        {selectedCampaign && (
+                            <p className="text-xs text-gray-500">{selectedCampaign.description}</p>
+                        )}
+                    </div>
+
                     <div className="space-y-2">
                         <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
                             <Phone className="w-4 h-4" /> Phone Number
@@ -68,17 +116,34 @@ export default function CallDispatcher() {
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
-                            <MessageSquare className="w-4 h-4" /> Context / Prompt
-                        </label>
-                        <textarea
-                            placeholder="e.g. You are calling regarding a coffee order..."
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300 h-28 resize-none"
-                        />
-                    </div>
+                    {!selectedCampaignId && (
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
+                                <MessageSquare className="w-4 h-4" /> Context / Prompt
+                            </label>
+                            <textarea
+                                placeholder="e.g. You are calling regarding a coffee order..."
+                                value={prompt}
+                                onChange={(e) => setPrompt(e.target.value)}
+                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300 h-28 resize-none"
+                            />
+                        </div>
+                    )}
+
+                    {selectedCampaignId && (
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
+                                <MessageSquare className="w-4 h-4" /> Additional Instructions (Optional)
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Customer name is Rahul, EMI amount is 5000..."
+                                value={prompt}
+                                onChange={(e) => setPrompt(e.target.value)}
+                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300"
+                            />
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -86,6 +151,7 @@ export default function CallDispatcher() {
                             <select
                                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500"
                                 name="modelProvider"
+                                value={selectedCampaign ? selectedCampaign.model_provider : undefined}
                                 defaultValue="groq"
                             >
                                 <option value="groq">Groq (Llama 3.3 - Fast)</option>
@@ -97,6 +163,7 @@ export default function CallDispatcher() {
                             <select
                                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500"
                                 name="voice"
+                                value={selectedCampaign ? selectedCampaign.voice_id : undefined}
                                 defaultValue="aura-asteria-en"
                             >
                                 <optgroup label="Deepgram (Fastest)">

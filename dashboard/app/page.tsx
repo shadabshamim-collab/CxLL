@@ -1,5 +1,6 @@
 import CallDispatcher from '@/components/CallDispatcher';
 import BulkDialer from '@/components/BulkDialer';
+import LiveActivity from '@/components/LiveActivity';
 
 export default function Home() {
   return (
@@ -25,27 +26,24 @@ export default function Home() {
           </div>
 
           <h1 className="text-6xl md:text-7xl font-extrabold tracking-tight">
-            <span className="text-white">Rapid X</span>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"> AI</span>
+            <span className="text-white">Cx</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">LL</span>
           </h1>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto font-light leading-relaxed">
             Next-Gen Voice Agent Orchestration.
           </p>
         </header>
 
-        <div className="flex flex-col md:flex-row gap-8 w-full justify-center items-start animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
+        <div className="flex flex-col lg:flex-row gap-8 w-full justify-center items-start animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
           <CallDispatcher />
           <BulkDialer />
+          <LiveActivity />
         </div>
 
         <footer className="text-sm text-gray-500 animate-in fade-in duration-1000 delay-500 text-center space-y-2">
-          <p>Powered by <span className="text-white font-semibold">Rapid X AI</span></p>
+          <p>Powered by <span className="text-white font-semibold">CxLL</span></p>
           <div className="flex gap-4 justify-center text-xs">
-            <a href="https://instagram.com/ai.w.raj" target="_blank" className="hover:text-pink-400 transition-colors">Instagram: @ai.w.raj</a>
-            <span className="text-gray-700">|</span>
-            <a href="https://x.com/topR9595" target="_blank" className="hover:text-blue-400 transition-colors">X: @topR9595</a>
-            <span className="text-gray-700">|</span>
-            <a href="https://youtube.com/@ShreyasRaj" target="_blank" className="hover:text-red-400 transition-colors">YouTube: Shreyas Raj</a>
+            <a href="https://www.linkedin.com/in/shadab-shamim-316b03148/" target="_blank" className="hover:text-pink-400 transition-colors">LinkedIn: Shadab Shamim </a>
           </div>
         </footer>
       </div>

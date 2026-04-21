@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from livekit import api
 from livekit.protocol.sip import CreateSIPOutboundTrunkRequest, SIPOutboundTrunkInfo
 
-load_dotenv(".env")
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 async def main():
     print("Connecting to LiveKit API...")

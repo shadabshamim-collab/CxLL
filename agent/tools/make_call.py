@@ -12,8 +12,8 @@ import logging
 from dotenv import load_dotenv
 from livekit import api
 
-# Load environment variables
-load_dotenv(".env")
+# Load environment variables from agent/.env
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 async def main():
     parser = argparse.ArgumentParser(description="Make an outbound call via LiveKit Agent.")

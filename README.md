@@ -1,221 +1,321 @@
-# LiveKit AI Voice Agent
+# CxLL — AI Voice Agent Platform
 
-A production-ready AI voice agent for outbound calls using **LiveKit**, **Deepgram**, **Groq**, and **Sarvam AI**.
-Built for loan collection reminders with a Next.js dashboard for call dispatching.
+A production-grade AI voice agent platform for high-volume outbound calling. Built on **LiveKit**, **Groq**, **Deepgram**, and **Sarvam AI** with a full-featured Next.js dashboard for campaign management, call orchestration, and real-time analytics.
+
+Designed for **3,000+ concurrent calls** with auto-scaling on AWS EKS.
 
 ---
 
-## Demo Video
+## Demo
 
 <video src="https://github.com/shadabshamim-collab/LivekitAIVoice/releases/download/v1.0.0/demo.mp4" controls width="100%"></video>
 
-> The demo shows the full flow: dispatching a call from the dashboard, the AI agent greeting the customer in Hinglish, handling the EMI reminder conversation, and presenting payment options.
->
-> If the video doesn't play inline: **[Download Demo Video (.mp4)](https://github.com/shadabshamim-collab/LivekitAIVoice/releases/download/v1.0.0/demo.mp4)** | **[Original Recording (.mov)](https://github.com/shadabshamim-collab/LivekitAIVoice/releases/download/v1.0.0/demo.mov)**
+> **[Download Demo Video (.mp4)](https://github.com/shadabshamim-collab/LivekitAIVoice/releases/download/v1.0.0/demo.mp4)** | **[Original Recording (.mov)](https://github.com/shadabshamim-collab/LivekitAIVoice/releases/download/v1.0.0/demo.mov)**
 
 ---
 
-## Technical Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        SYSTEM OVERVIEW                              │
-│                                                                     │
-│  ┌──────────────┐     ┌──────────────────┐     ┌────────────────┐  │
-│  │   Dashboard   │────>│   LiveKit Cloud   │────>│  Voice Agent   │  │
-│  │  (Next.js)    │     │   (WebRTC/SIP)    │     │  (Python)      │  │
-│  └──────────────┘     └────────┬─────────┘     └───────┬────────┘  │
-│                                │                        │           │
-│                                v                        v           │
-│                       ┌────────────────┐    ┌─────────────────────┐ │
-│                       │  Vobiz (PSTN)  │    │   AI Services       │ │
-│                       │  SIP Trunking  │    │  ┌───────────────┐  │ │
-│                       └───────┬────────┘    │  │ Groq (LLM)    │  │ │
-│                               │             │  │ Llama 3.3 70B │  │ │
-│                               v             │  └───────────────┘  │ │
-│                       ┌────────────────┐    │  ┌───────────────┐  │ │
-│                       │  Customer's    │    │  │ Deepgram      │  │ │
-│                       │  Phone         │    │  │ STT + TTS     │  │ │
-│                       └────────────────┘    │  └───────────────┘  │ │
-│                                             │  ┌───────────────┐  │ │
-│                                             │  │ Sarvam AI     │  │ │
-│                                             │  │ Indian TTS    │  │ │
-│                                             │  └───────────────┘  │ │
-│                                             └─────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           CxLL PLATFORM ARCHITECTURE                        │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                         DASHBOARD (Next.js)                         │    │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌─────────────┐  │    │
+│  │  │ Call       │  │ Bulk       │  │ Campaign   │  │ Analytics   │  │    │
+│  │  │ Dispatcher │  │ Dialer     │  │ Manager    │  │ + Live Feed │  │    │
+│  │  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘  └──────┬──────┘  │    │
+│  │        └───────────┬───┘               │                │         │    │
+│  │                    v                   v                v         │    │
+│  │  ┌──────────────────────────────────────────────────────────────┐ │    │
+│  │  │                    API Layer (Next.js Routes)                │ │    │
+│  │  │  /api/dispatch  /api/queue  /api/campaigns  /api/calls      │ │    │
+│  │  │  /api/health    /api/calls/stream (SSE)    /api/calls/webhook│ │    │
+│  │  └────────┬─────────────┬──────────────────────────┬───────────┘ │    │
+│  └───────────┼─────────────┼──────────────────────────┼─────────────┘    │
+│              │             │                          │                   │
+│              v             v                          v                   │
+│  ┌───────────────┐  ┌──────────┐              ┌────────────┐             │
+│  │  BullMQ Queue  │  │  Redis   │              │  Airtable  │             │
+│  │  (Optional)    │◄─┤  State   │              │  / File    │             │
+│  │  Rate Limit    │  │  Machine │              │  Storage   │             │
+│  │  DND Enforce   │  │  Pub/Sub │              └────────────┘             │
+│  │  Retry Logic   │  └──────────┘                                        │
+│  └───────┬───────┘                                                       │
+│          │                                                                │
+│          v                                                                │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                       LIVEKIT CLOUD (WebRTC + SIP)                  │  │
+│  │   Agent Dispatch API  ──>  Room Assignment  ──>  SIP Bridge         │  │
+│  └──────────┬────────────────────────────────────────────┬─────────────┘  │
+│             │                                            │                │
+│             v                                            v                │
+│  ┌──────────────────────────┐                ┌─────────────────────┐     │
+│  │   VOICE AGENT (Python)   │                │  PSTN / Vobiz SIP   │     │
+│  │  ┌────────────────────┐  │                │  Trunk Gateway      │     │
+│  │  │ Deepgram STT       │  │                └──────────┬──────────┘     │
+│  │  │ (Nova-2, Realtime) │  │                           │                │
+│  │  ├────────────────────┤  │                           v                │
+│  │  │ Groq LLM           │  │                ┌─────────────────────┐     │
+│  │  │ (Llama 3.3 70B)    │  │                │  Customer's Phone   │     │
+│  │  ├────────────────────┤  │                └─────────────────────┘     │
+│  │  │ Sarvam / Deepgram  │  │                                            │
+│  │  │ TTS (Indian voices)│  │                                            │
+│  │  ├────────────────────┤  │                                            │
+│  │  │ Silero VAD         │  │                                            │
+│  │  │ (Tuned for Indian  │  │                                            │
+│  │  │  telecom networks) │  │                                            │
+│  │  ├────────────────────┤  │                                            │
+│  │  │ Post-Call Analysis  │  │                                            │
+│  │  │ (LLM-powered)      │  │                                            │
+│  │  └────────────────────┘  │                                            │
+│  └──────────────────────────┘                                            │
+│                                                                           │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                    KUBERNETES (AWS EKS)                              │  │
+│  │   Agent Pods (HPA: 3→50)  │  Dashboard (2 replicas)  │  Redis      │  │
+│  └─────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Call Flow
+---
+
+## Call Flow
 
 ```
-Dashboard/CLI                LiveKit Cloud              Voice Agent               Customer
-     │                            │                          │                       │
-     │  1. Dispatch Agent         │                          │                       │
-     │ ──────────────────────>    │                          │                       │
-     │                            │  2. Assign Job           │                       │
-     │                            │ ───────────────────────> │                       │
-     │                            │                          │                       │
-     │                            │  3. Create SIP Call      │                       │
-     │                            │ <─────────────────────── │                       │
-     │                            │                          │                       │
-     │                            │         4. SIP INVITE (via Vobiz)               │
-     │                            │ ─────────────────────────────────────────────>   │
-     │                            │                          │                       │
-     │                            │         5. Call Answered                         │
-     │                            │ <─────────────────────────────────────────────   │
-     │                            │                          │                       │
-     │                            │  6. Audio Stream (WebRTC)│                       │
-     │                            │ <─────────────────────── │ ──────────────────>   │
-     │                            │                          │                       │
-     │                            │        7. Conversation Loop                      │
-     │                            │        ┌─────────────────┼───────────────────┐   │
-     │                            │        │ Customer speaks │                   │   │
-     │                            │        │     ──> Deepgram STT ──> Text      │   │
-     │                            │        │     ──> Groq LLM ──> Response      │   │
-     │                            │        │     ──> Deepgram/Sarvam TTS ──>    │   │
-     │                            │        │                 │    Agent speaks   │   │
-     │                            │        └─────────────────┼───────────────────┘   │
-     │                            │                          │                       │
+ Dashboard                  API / Queue            LiveKit Cloud           Voice Agent             Customer
+    │                           │                       │                      │                      │
+    │  1. Select campaign       │                       │                      │                      │
+    │     + phone number        │                       │                      │                      │
+    │  ────────────────────>    │                       │                      │                      │
+    │                           │                       │                      │                      │
+    │           2. DND check + rate limit               │                      │                      │
+    │              Enqueue or direct dispatch            │                      │                      │
+    │                           │                       │                      │                      │
+    │                           │  3. Agent Dispatch     │                      │                      │
+    │                           │  (campaign metadata)   │                      │                      │
+    │                           │ ─────────────────────> │                      │                      │
+    │                           │                       │  4. Assign to agent  │                      │
+    │                           │                       │ ────────────────────> │                      │
+    │                           │                       │                      │                      │
+    │                           │                       │  5. ctx.connect()    │                      │
+    │                           │                       │ <──────────────────── │                      │
+    │                           │                       │                      │                      │
+    │                           │                       │  6. SIP INVITE       │                      │
+    │                           │                       │  (via Vobiz trunk)   │                      │
+    │                           │                       │ ─────────────────────────────────────────>  │
+    │                           │                       │                      │                      │
+    │                           │                       │              7. Call Answered               │
+    │                           │                       │ <─────────────────────────────────────────  │
+    │                           │                       │                      │                      │
+    │                           │                       │     8. Audio Stream (WebRTC bidirectional)  │
+    │                           │                       │ <────────────────────>│<──────────────────> │
+    │                           │                       │                      │                      │
+    │                           │                       │      9. Conversation Loop                   │
+    │                           │                       │      ┌───────────────┼──────────────────┐   │
+    │                           │                       │      │ Speech ─> Deepgram STT ─> Text  │   │
+    │                           │                       │      │ Text ──> Groq LLM ──> Response  │   │
+    │                           │                       │      │ Response ─> Sarvam TTS ─> Audio │   │
+    │                           │                       │      └───────────────┼──────────────────┘   │
+    │                           │                       │                      │                      │
+    │                           │                       │     10. Call Ends     │                      │
+    │                           │                       │ <──────────────────── │                      │
+    │                           │                       │                      │                      │
+    │  11. Webhook: completed   │  <──────────────────────────────────────────│                      │
+    │  12. Webhook: summary     │  <──────────────────────────────────────────│                      │
+    │      (LLM-analyzed outcome,│                      │                      │                      │
+    │       sentiment, disposition)                     │                      │                      │
+    │                           │                       │                      │                      │
+    │  *** If SIP 486 (Busy) ***│                       │                      │                      │
+    │  13. Webhook: retry       │                       │                      │                      │
+    │      Auto-requeue in 5min │                       │                      │                      │
 ```
-
-### Component Responsibilities
-
-| Component | Technology | Role |
-|-----------|-----------|------|
-| **Voice Agent** | Python + LiveKit Agents SDK | Manages call lifecycle, runs AI conversation loop |
-| **STT (Speech-to-Text)** | Deepgram Nova-2 | Converts customer's speech to text in real-time |
-| **LLM (Brain)** | Groq - Llama 3.3 70B | Generates contextual responses based on system prompt |
-| **TTS (Text-to-Speech)** | Deepgram Aura / Sarvam Bulbul v2 | Converts agent's text responses to natural speech |
-| **VAD (Voice Activity)** | Silero | Detects when customer starts/stops speaking |
-| **SIP Trunking** | Vobiz | Bridges WebRTC audio to the PSTN phone network |
-| **Dashboard** | Next.js + React + TailwindCSS | Web UI for dispatching calls and bulk dialing |
-| **Noise Cancellation** | LiveKit BVC Telephony | Removes background noise from phone audio |
 
 ---
 
 ## Project Structure
 
 ```
-LivekitAIVoice/
+CxLL/
 │
-├── agent.py                  # Main voice agent — entry point, call lifecycle, AI pipeline
-├── config.py                 # Prompt playground — system prompts, model/voice settings
-├── make_call.py              # CLI script to initiate a single outbound call
-├── create_trunk.py           # Create a new SIP trunk on LiveKit
-├── setup_trunk.py            # Update existing SIP trunk credentials
-├── list_trunks.py            # List all configured SIP trunks
-├── requirements.txt          # Python dependencies
-├── Dockerfile                # Docker container config
-├── docker-compose.yml        # Docker Compose for deployment
-├── .env.example              # Template for environment variables
-├── .gitignore                # Git ignore rules
-├── transfer_call.md          # SIP call transfer documentation
+├── agent/                        # Core Calling Engine (Python)
+│   ├── agent.py                  #   Voice agent — call lifecycle, AI pipeline, retry logic
+│   ├── config.py                 #   Prompt playground — system prompts, model/voice settings
+│   ├── requirements.txt          #   Python dependencies
+│   ├── Dockerfile                #   Agent container build
+│   ├── .env                      #   LiveKit, Groq, Deepgram, SIP credentials
+│   ├── .env.example              #   Environment variable template
+│   ├── transfer_call.md          #   SIP transfer documentation
+│   ├── campaigns/                #   Campaign JSON files (version-controlled prompts)
+│   │   └── collection-reminder-test.json
+│   └── tools/                    #   SIP utility scripts
+│       ├── make_call.py          #     CLI: single outbound call
+│       ├── create_trunk.py       #     Create SIP trunk on LiveKit
+│       ├── setup_trunk.py        #     Update SIP trunk credentials
+│       └── list_trunks.py        #     List configured SIP trunks
 │
-├── dashboard/                # Next.js Web Dashboard
+├── dashboard/                    # Web Dashboard (Next.js)
 │   ├── app/
-│   │   ├── api/
-│   │   │   ├── dispatch/
-│   │   │   │   └── route.ts      # API: Single call dispatch
-│   │   │   └── queue/
-│   │   │       └── route.ts      # API: Bulk call queue
-│   │   ├── layout.tsx            # Root layout
-│   │   ├── page.tsx              # Home page
-│   │   └── globals.css           # Global styles
+│   │   ├── page.tsx              #   Home — dispatch + bulk dialer + live activity
+│   │   ├── layout.tsx            #   Nav bar (Calls | Campaigns | Analytics)
+│   │   ├── campaigns/            #   Campaign CRUD pages (list, create, edit)
+│   │   ├── analytics/            #   Call analytics with stats + history
+│   │   └── api/
+│   │       ├── dispatch/         #     Single call dispatch
+│   │       ├── queue/            #     Bulk call queue
+│   │       ├── campaigns/        #     Campaign CRUD API
+│   │       ├── calls/            #     Call logs, stats, SSE stream, webhook
+│   │       └── health/           #     K8s readiness/liveness probe
 │   ├── components/
-│   │   ├── CallDispatcher.tsx    # Single call dispatch UI
-│   │   └── BulkDialer.tsx        # Bulk dialing UI
+│   │   ├── CallDispatcher.tsx    #   Single call form with campaign selector
+│   │   ├── BulkDialer.tsx        #   Bulk dialer with CSV upload
+│   │   └── LiveActivity.tsx      #   Real-time call feed (SSE)
 │   ├── lib/
-│   │   └── server-utils.ts      # LiveKit SDK clients (SIP, Room, Agent)
-│   ├── package.json
-│   ├── tailwind.config.js
-│   └── tsconfig.json
+│   │   ├── campaigns.ts          #   Campaign file I/O + versioning
+│   │   ├── call-logger.ts        #   Airtable + file-based call logging
+│   │   ├── call-state.ts         #   Redis-backed call state machine
+│   │   ├── call-queue.ts         #   BullMQ queue with DND + rate limiting
+│   │   ├── redis.ts              #   Redis client singleton
+│   │   ├── airtable.ts           #   Airtable REST client
+│   │   └── server-utils.ts       #   LiveKit SDK clients
+│   ├── Dockerfile                #   Dashboard container (standalone)
+│   ├── instrumentation.ts        #   BullMQ worker startup hook
+│   └── .env                      #   Dashboard-specific environment
 │
+├── k8s/                          # Kubernetes Manifests (AWS EKS)
+│   ├── namespace.yaml
+│   ├── secrets.yaml
+│   ├── configmap.yaml
+│   ├── redis.yaml                #   Redis 7 deployment + service
+│   ├── agent-deployment.yaml     #   Agent HPA (3→50 pods)
+│   └── dashboard-deployment.yaml #   Dashboard + ALB ingress
+│
+├── docker-compose.yml            # Local development compose
 └── README.md
 ```
-
-### Key Files Explained
-
-| File | Purpose |
-|------|---------|
-| `agent.py` | Core voice agent. Handles room join, SIP dial-out, STT/LLM/TTS pipeline, and call transfer. |
-| `config.py` | **Prompt playground.** Edit `SYSTEM_PROMPT`, `INITIAL_GREETING` to change agent behavior. Swap LLM/TTS providers here. |
-| `dashboard/app/api/dispatch/route.ts` | Dispatches agent to a room via LiveKit Agent Dispatch API. |
-| `dashboard/components/CallDispatcher.tsx` | Frontend form — phone number, prompt, model provider, and voice selection. |
-| `dashboard/lib/server-utils.ts` | Initializes LiveKit server SDK clients (SipClient, AgentDispatchClient, RoomServiceClient). |
 
 ---
 
 ## Features
 
-- **Multi-LLM Support**: Groq (Llama 3.3 70B) or OpenAI (GPT-4o)
-- **Multi-TTS Support**: Deepgram (fastest), Sarvam AI (Indian voices), OpenAI, Cartesia
-- **Hinglish Support**: Natural Hindi-English conversation via Sarvam AI voices
-- **Call Transfer**: Transfer to human agents via SIP REFER
-- **Dashboard**: Web UI for single and bulk call dispatching
+### Calling Engine
+- **Multi-LLM**: Groq (Llama 3.3 70B) with automatic fallback to Llama 3.1 8B Instant
+- **Multi-TTS**: Sarvam AI (Indian voices), Deepgram Aura, OpenAI, Cartesia
+- **Hinglish Support**: Natural Hindi-English conversation via Sarvam Bulbul v2
+- **Tuned VAD**: Silero parameters optimized for Indian telecom audio quality
+- **Call Transfer**: SIP REFER to human agents when needed
+- **SIP Error Handling**: Auto-retry on busy (486), no answer (480), timeout (408)
+- **Post-Call Analysis**: LLM-powered outcome classification, sentiment, and disposition
 - **Noise Cancellation**: LiveKit BVC telephony-grade noise removal
-- **Docker Ready**: Dockerfile and docker-compose included
+
+### Campaign Management
+- **Multi-Campaign**: 10-15+ campaigns running simultaneously with distinct prompts/voices
+- **Version History**: Every prompt change is versioned with timestamps and change notes
+- **Per-Call Overrides**: Model and voice can be overridden per call even within a campaign
+- **Active/Inactive Toggle**: Campaigns can be paused without deletion
+
+### Dashboard
+- **Single Call Dispatch**: Campaign selector, model/voice dropdowns, prompt preview
+- **Bulk Operations**: CSV upload, staggered dispatch with rate limiting
+- **Live Activity Feed**: SSE-powered real-time call status on the main page
+- **Analytics**: 8 stat cards, campaign performance table, call history with outcome/sentiment
+- **Phone Masking**: Last 6 digits masked in all UI views
+- **Copyable Errors**: One-click copy on error messages
+
+### Infrastructure
+- **Graceful Degradation**: Works without Redis (direct dispatch + file logging), gains queue/state machine when Redis is available, adds persistent storage with Airtable
+- **BullMQ Queue**: Rate limiting, DND enforcement (9 PM–9 AM IST), retry with exponential backoff
+- **Call State Machine**: QUEUED → DIALING → RINGING → CONNECTED → COMPLETED/FAILED
+- **K8s Ready**: HPA auto-scaling 3→50 agent pods, ALB ingress, health probes
+- **Docker**: Multi-stage builds for both agent and dashboard
+
+---
+
+## Component Responsibilities
+
+| Component | Technology | Role |
+|-----------|-----------|------|
+| **Voice Agent** | Python, LiveKit Agents SDK 1.5.x | Call lifecycle, AI conversation loop, SIP retry, post-call analysis |
+| **STT** | Deepgram Nova-2 | Real-time speech-to-text |
+| **LLM** | Groq (Llama 3.3 70B) + fallback (8B Instant) | Contextual response generation |
+| **TTS** | Sarvam Bulbul v2 / Deepgram Aura | Text-to-speech with Indian voice support |
+| **VAD** | Silero (tuned) | Voice activity detection for Indian telecom |
+| **SIP** | Vobiz via LiveKit SIP | PSTN bridge for outbound calls |
+| **Dashboard** | Next.js 16, React 19, TailwindCSS 4 | Campaign management, call dispatch, analytics |
+| **Queue** | BullMQ + Redis | Rate limiting, DND, scheduling, retry |
+| **State** | Redis | Real-time call state machine + pub/sub |
+| **Storage** | Airtable / JSON files | Call logs, campaign configs |
+| **Infra** | AWS EKS, Docker | Auto-scaling, containerized deployment |
 
 ---
 
 ## Setup & Installation
 
-### 1. Prerequisites
+### Prerequisites
 - Python 3.10+ (Recommended: 3.12)
-- Node.js 18+ (for dashboard)
+- Node.js 18+
 - [LiveKit Cloud](https://cloud.livekit.io/) account
 - [Deepgram](https://deepgram.com/) API Key
 - [Groq](https://groq.com/) API Key
 - SIP Provider (e.g., Vobiz)
 
-### 2. Clone & Install
+### Quick Start
 
 ```bash
 git clone https://github.com/shadabshamim-collab/LivekitAIVoice.git
 cd LivekitAIVoice
 
-# Python setup
+# Agent setup
+cd agent
 python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env   # Fill in your API keys
+cd ..
 
 # Dashboard setup
-cd dashboard && npm install && cd ..
+cd dashboard
+npm install
+# Create dashboard/.env with LiveKit credentials
+cd ..
 ```
 
-### 3. Configure Environment
+### Environment Variables
 
-```bash
-cp .env.example .env
-# Fill in your API keys (LiveKit, Deepgram, Groq, Vobiz)
-```
+**`agent/.env`** — Core calling credentials:
 
-**Required Variables:**
 | Variable | Description |
 |----------|-------------|
-| `LIVEKIT_URL` | Your LiveKit Cloud WebSocket URL |
+| `LIVEKIT_URL` | LiveKit Cloud WebSocket URL |
 | `LIVEKIT_API_KEY` | LiveKit API key |
 | `LIVEKIT_API_SECRET` | LiveKit API secret |
-| `DEEPGRAM_API_KEY` | Deepgram API key for STT/TTS |
-| `GROQ_API_KEY` | Groq API key for LLM |
+| `DEEPGRAM_API_KEY` | Deepgram API key (STT/TTS) |
+| `GROQ_API_KEY` | Groq API key (LLM) |
 | `VOBIZ_SIP_DOMAIN` | SIP server address |
 | `VOBIZ_USERNAME` | SIP auth username |
 | `VOBIZ_PASSWORD` | SIP auth password |
-| `VOBIZ_OUTBOUND_NUMBER` | Caller ID number |
-| `VOBIZ_SIP_TRUNK_ID` | LiveKit SIP trunk ID (created via `create_trunk.py`) |
+| `VOBIZ_SIP_TRUNK_ID` | LiveKit SIP trunk ID |
 
-### 4. Create SIP Trunk
+**`dashboard/.env`** — Dashboard credentials:
+
+| Variable | Description |
+|----------|-------------|
+| `LIVEKIT_URL` | LiveKit Cloud WebSocket URL |
+| `LIVEKIT_API_KEY` | LiveKit API key |
+| `LIVEKIT_API_SECRET` | LiveKit API secret |
+| `OUTBOUND_TRUNK_ID` | SIP trunk ID for dispatch |
+| `REDIS_URL` | Redis URL (optional — enables queue + state machine) |
+| `AIRTABLE_API_KEY` | Airtable PAT (optional — enables persistent storage) |
+| `AIRTABLE_BASE_ID` | Airtable base ID (optional) |
+
+### Create SIP Trunk
 
 ```bash
-python create_trunk.py
-# Copy the Trunk ID and add to .env as VOBIZ_SIP_TRUNK_ID and OUTBOUND_TRUNK_ID
-```
-
-Also create `dashboard/.env`:
-```
-LIVEKIT_URL=wss://your-project.livekit.cloud
-LIVEKIT_API_KEY=your_key
-LIVEKIT_API_SECRET=your_secret
-VOBIZ_SIP_TRUNK_ID=your_trunk_id
+cd agent
+source venv/bin/activate
+python tools/create_trunk.py
+# Copy the Trunk ID → add to both agent/.env and dashboard/.env
 ```
 
 ---
@@ -224,42 +324,40 @@ VOBIZ_SIP_TRUNK_ID=your_trunk_id
 
 ### Start the Agent
 ```bash
+cd agent
 source venv/bin/activate
 python agent.py start
 ```
 
-### Make a Call (CLI)
-```bash
-python make_call.py --to +91XXXXXXXXXX
-```
-
 ### Start the Dashboard
 ```bash
-cd dashboard && npm run dev
+cd dashboard
+npm run dev
 # Open http://localhost:3000
+```
+
+### Make a Call (CLI)
+```bash
+cd agent
+source venv/bin/activate
+python tools/make_call.py --to +91XXXXXXXXXX
 ```
 
 ---
 
 ## Customizing the Agent
 
-Edit `config.py` to change the agent's personality, language, and behavior:
+Edit `agent/config.py` to change the agent's personality, language, and behavior:
 
 ```python
-# Change the system prompt
 SYSTEM_PROMPT = """Your custom prompt here..."""
-
-# Change the greeting
 INITIAL_GREETING = """Your custom greeting..."""
 
-# Switch LLM provider
-DEFAULT_LLM_PROVIDER = "groq"  # or "openai"
-
-# Switch TTS provider  
-DEFAULT_TTS_PROVIDER = "deepgram"  # or "sarvam" or "openai"
+DEFAULT_LLM_PROVIDER = "groq"       # or "openai"
+DEFAULT_TTS_PROVIDER = "sarvam"     # or "deepgram", "openai", "cartesia"
 ```
 
-After editing, restart the agent: `pkill -f "agent.py"; python agent.py start`
+Or create a campaign via the dashboard UI at `/campaigns/new` for version-controlled prompt management.
 
 ---
 
@@ -267,12 +365,12 @@ After editing, restart the agent: `pkill -f "agent.py"; python agent.py start`
 
 | Error | Cause | Fix |
 |-------|-------|-----|
+| `SIP 486: Busy Here` | Customer is on another call | Auto-retries in 5 minutes (built-in) |
+| `SIP 480: No Answer` | Customer didn't pick up | Auto-retries in 10 minutes (built-in) |
 | `OPENAI_API_KEY not set` | Dashboard defaulting to OpenAI | Select "Groq" in model provider dropdown |
 | `Speaker not compatible` | Invalid Sarvam voice name | Use: anushka, arya, abhilash, karun, hitesh |
-| `402 Payment Required` | Vobiz account has no balance | Top up Vobiz calling credits |
-| `SIP Trunk not configured` | Missing `VOBIZ_SIP_TRUNK_ID` in dashboard `.env` | Add trunk ID to `dashboard/.env` |
-| `Address already in use :8081` | Another agent instance running | `pkill -f "python agent.py"` |
-| `TypeAlias import error` | Python version < 3.10 | Install Python 3.10+ |
+| `402 Payment Required` | Vobiz balance depleted | Top up Vobiz calling credits |
+| `Address already in use :8081` | Agent already running | `pkill -f "python agent.py"` |
 
 ---
 
@@ -281,10 +379,12 @@ After editing, restart the agent: `pkill -f "agent.py"; python agent.py start`
 | Layer | Technology |
 |-------|-----------|
 | Voice Agent | Python 3.12, LiveKit Agents SDK 1.5.x |
-| LLM | Groq (Llama 3.3 70B Versatile) |
+| LLM | Groq (Llama 3.3 70B + 3.1 8B fallback) |
 | STT | Deepgram Nova-2 |
-| TTS | Deepgram Aura, Sarvam Bulbul v2, OpenAI TTS-1 |
-| VAD | Silero |
+| TTS | Sarvam Bulbul v2, Deepgram Aura, OpenAI TTS-1 |
+| VAD | Silero (tuned for Indian telecom) |
 | Telephony | LiveKit SIP, Vobiz PSTN Gateway |
 | Dashboard | Next.js 16, React 19, TailwindCSS 4 |
-| Deployment | Docker, Docker Compose |
+| Queue | BullMQ, Redis |
+| Storage | Airtable, JSON files |
+| Infra | AWS EKS, Docker, Kubernetes |
