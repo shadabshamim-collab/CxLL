@@ -206,20 +206,34 @@ export async function POST(request: Request) {
             });
             await tryTransitionState(room_name, 'failed', { error: `SIP ${sipCode}` });
 
-            // Schedule retry if not "declined"
+            // For sheet-backed calls: write Missed Call to sheet + use sheets retry ladder.
+            // This clears "Dialing…" from Col D so the row doesn't get stuck.
             let retryScheduled = false;
-            if (phone_number && retryReason !== 'declined' && delay > 0) {
+            try {
+                const { getSheetsMeta } = await import('@/lib/google-sheets');
+                const sheetsMeta = await getSheetsMeta(room_name);
+                if (sheetsMeta) {
+                    console.log(`[Webhook] SIP ${sipCode} on sheet-backed call (URN ${sheetsMeta.urn}) — writing Missed Call and scheduling via sheets ladder`);
+                    await tryWriteSheetDisposition(room_name, 'Missed Call', {
+                        notes: `SIP ${sipCode}: ${retryReason}`,
+                        durationSeconds: 0,
+                    });
+                    retryScheduled = true;
+                }
+            } catch { /* Redis unavailable — fall through to standard retry */ }
+
+            // Standard SIP retry for non-sheet calls
+            if (!retryScheduled && phone_number && retryReason !== 'declined' && delay > 0) {
                 retryScheduled = await tryScheduleRetry(phone_number, campaign_id, delay);
             }
 
-            console.log(`[Webhook] SIP ${sipCode} (${retryReason}) for ${phone_number} — retry ${retryScheduled ? `in ${delay}s` : 'skipped'}`);
+            console.log(`[Webhook] SIP ${sipCode} (${retryReason}) for ${phone_number} — retry ${retryScheduled ? 'scheduled' : 'skipped'}`);
 
             return NextResponse.json({
                 success: true,
                 sip_status: sipCode,
                 reason: retryReason,
                 retry_scheduled: retryScheduled,
-                retry_delay_seconds: retryScheduled ? delay : 0,
             });
         }
 
