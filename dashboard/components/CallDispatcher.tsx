@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Phone, MessageSquare, Loader2, Sparkles, Megaphone, Wifi, WifiOff, RefreshCw, Sheet } from 'lucide-react';
+import { Phone, MessageSquare, Loader2, Sparkles, Megaphone, Wifi, WifiOff, RefreshCw, Sheet, PhoneCall } from 'lucide-react';
 
 interface Campaign {
     id: string;
@@ -11,7 +11,7 @@ interface Campaign {
     model_provider: string;
     voice_id: string;
     language: string;
-    lead_source?: { type: string; tab_name?: string };
+    lead_source?: { type: string; sheet_id?: string; tab_name?: string };
 }
 
 interface HealthCheck {
@@ -31,8 +31,10 @@ export default function CallDispatcher() {
     const [prompt, setPrompt] = useState('');
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState('');
+    const [syncResult, setSyncResult] = useState<any>(null);
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [selectedCampaignId, setSelectedCampaignId] = useState('');
+    const [leadMode, setLeadMode] = useState<'manual' | 'sheets'>('manual');
     const [health, setHealth] = useState<AgentHealth | null>(null);
     const [healthLoading, setHealthLoading] = useState(true);
 
@@ -63,12 +65,42 @@ export default function CallDispatcher() {
     }, []);
 
     const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
+    const isSheetsCampaign = selectedCampaign?.lead_source?.type === 'google_sheets';
+
+    const handleCampaignChange = (id: string) => {
+        setSelectedCampaignId(id);
+        const c = campaigns.find(x => x.id === id);
+        if (c?.lead_source?.type !== 'google_sheets') setLeadMode('manual');
+        setSyncResult(null);
+        setStatus('idle');
+        setMessage('');
+    };
 
     const handleDispatch = async (e: React.FormEvent) => {
         e.preventDefault();
         setStatus('loading');
         setMessage('');
+        setSyncResult(null);
 
+        // ── Google Sheet mode ─────────────────────────────────────────────
+        if (leadMode === 'sheets') {
+            try {
+                const res = await fetch('/api/campaigns/sheets-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ campaignId: selectedCampaignId }),
+                });
+                const data = await res.json();
+                setSyncResult(data);
+                setStatus(res.ok ? 'success' : 'error');
+            } catch (err: any) {
+                setSyncResult({ error: err.message });
+                setStatus('error');
+            }
+            return;
+        }
+
+        // ── Manual mode ───────────────────────────────────────────────────
         const form = e.target as HTMLFormElement;
         const modelProvider = (form.elements.namedItem('modelProvider') as HTMLSelectElement).value;
         const voice = (form.elements.namedItem('voice') as HTMLSelectElement).value;
@@ -170,7 +202,7 @@ export default function CallDispatcher() {
                         </label>
                         <select
                             value={selectedCampaignId}
-                            onChange={(e) => setSelectedCampaignId(e.target.value)}
+                            onChange={(e) => handleCampaignChange(e.target.value)}
                             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500"
                         >
                             <option value="">Custom (No Campaign)</option>
@@ -179,32 +211,68 @@ export default function CallDispatcher() {
                             ))}
                         </select>
                         {selectedCampaign && (
-                            <div className="space-y-1">
-                                <p className="text-xs text-gray-500">{selectedCampaign.description}</p>
-                                {selectedCampaign.lead_source?.type === 'google_sheets' && (
-                                    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/25 rounded text-emerald-300">
-                                        <Sheet className="w-3 h-3" />
-                                        Lead source: Google Sheet
-                                        {selectedCampaign.lead_source.tab_name ? ` · ${selectedCampaign.lead_source.tab_name}` : ''}
-                                        {' '}— calls dispatched by cron, not manually
-                                    </span>
-                                )}
-                            </div>
+                            <p className="text-xs text-gray-500">{selectedCampaign.description}</p>
                         )}
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
-                            <Phone className="w-4 h-4" /> Phone Number
-                        </label>
-                        <input
-                            type="tel"
-                            placeholder="+919876543210"
-                            required
-                            value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value)}
-                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300"
-                        />
+                    {/* Lead Source Tabs */}
+                    <div className="space-y-3">
+                        <div className="flex rounded-xl overflow-hidden border border-white/10 text-sm">
+                            <button
+                                type="button"
+                                onClick={() => setLeadMode('manual')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 transition-colors ${
+                                    leadMode === 'manual'
+                                        ? 'bg-purple-600/30 text-purple-300'
+                                        : 'bg-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/10'
+                                }`}
+                            >
+                                <PhoneCall className="w-3.5 h-3.5" /> Phone Number
+                            </button>
+                            {isSheetsCampaign && (
+                                <button
+                                    type="button"
+                                    onClick={() => setLeadMode('sheets')}
+                                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 border-l border-white/10 transition-colors ${
+                                        leadMode === 'sheets'
+                                            ? 'bg-emerald-600/30 text-emerald-300'
+                                            : 'bg-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/10'
+                                    }`}
+                                >
+                                    <Sheet className="w-3.5 h-3.5" /> Google Sheet
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Manual: phone input */}
+                        {leadMode === 'manual' && (
+                            <div>
+                                <input
+                                    type="tel"
+                                    placeholder="+919876543210"
+                                    required
+                                    value={phoneNumber}
+                                    onChange={(e) => setPhoneNumber(e.target.value)}
+                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300"
+                                />
+                            </div>
+                        )}
+
+                        {/* Sheets: sheet info panel */}
+                        {leadMode === 'sheets' && selectedCampaign?.lead_source && (
+                            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+                                <div className="flex items-center gap-2 text-emerald-300 text-sm font-medium">
+                                    <Sheet className="w-4 h-4" /> Google Sheet
+                                </div>
+                                <div className="text-xs text-gray-400 space-y-1 font-mono">
+                                    <div>Sheet ID: <span className="text-gray-300">{selectedCampaign.lead_source.sheet_id?.slice(0, 24)}…</span></div>
+                                    <div>Tab: <span className="text-gray-300">{selectedCampaign.lead_source.tab_name || 'Leads'}</span></div>
+                                </div>
+                                <p className="text-xs text-emerald-400/70">
+                                    Dispatches all undialed leads (Col D empty). Writes sentinel before each call.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {!selectedCampaignId && (
@@ -279,23 +347,48 @@ export default function CallDispatcher() {
 
                     <button
                         type="submit"
-                        disabled={status === 'loading' || (!health?.ready && !healthLoading)}
+                        disabled={status === 'loading' || (leadMode === 'manual' && !health?.ready && !healthLoading)}
                         className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0"
                     >
                         {status === 'loading' ? (
-                            <>
-                                <Loader2 className="w-5 h-5 animate-spin" /> Dispatching...
-                            </>
-                        ) : !health?.ready && !healthLoading ? (
+                            <><Loader2 className="w-5 h-5 animate-spin" /> {leadMode === 'sheets' ? 'Syncing Sheet…' : 'Dispatching…'}</>
+                        ) : leadMode === 'manual' && !health?.ready && !healthLoading ? (
                             'Agent Offline — Cannot Dispatch'
+                        ) : leadMode === 'sheets' ? (
+                            <><RefreshCw className="w-4 h-4" /> Sync from Sheet</>
                         ) : (
                             'Initiate Call'
                         )}
                     </button>
 
-                    {message && (
+                    {/* Manual call result */}
+                    {message && leadMode === 'manual' && (
                         <div className={`p-4 rounded-xl text-sm text-center border animate-in fade-in slide-in-from-bottom-2 ${status === 'success' ? 'bg-green-500/10 text-green-200 border-green-500/20' : 'bg-red-500/10 text-red-200 border-red-500/20'}`}>
                             {message}
+                        </div>
+                    )}
+
+                    {/* Sheet sync result */}
+                    {syncResult && (
+                        <div className={`p-4 rounded-xl text-sm border animate-in fade-in slide-in-from-bottom-2 space-y-1 ${
+                            status === 'success' ? 'bg-green-500/10 text-green-200 border-green-500/20' : 'bg-red-500/10 text-red-200 border-red-500/20'
+                        }`}>
+                            {syncResult.message ? (
+                                <p>{syncResult.message}</p>
+                            ) : syncResult.error ? (
+                                <p>{syncResult.error}</p>
+                            ) : (
+                                <>
+                                    <p className="font-medium">{syncResult.dispatched} call{syncResult.dispatched !== 1 ? 's' : ''} dispatched</p>
+                                    {syncResult.available_leads !== undefined && (
+                                        <p className="text-xs opacity-70">{syncResult.available_leads} undialed leads · Tab: {syncResult.tab}</p>
+                                    )}
+                                    {syncResult.failed > 0 && <p className="text-red-400 text-xs">{syncResult.failed} failed</p>}
+                                    {syncResult.errors?.map((err: string, i: number) => (
+                                        <p key={i} className="text-red-400 text-xs font-mono">{err}</p>
+                                    ))}
+                                </>
+                            )}
                         </div>
                     )}
                 </form>
