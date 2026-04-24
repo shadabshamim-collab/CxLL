@@ -197,14 +197,15 @@ export async function POST(request: Request) {
             const sipCode = sip_status || 0;
             const delay = retry_delay_seconds || 300;
 
-            // Mark current call as the SIP failure reason
+            // Missed call (busy/no-answer/timeout) — not an error, will retry
+            const isMissed = retryReason === 'missed_call' || retryReason === 'declined';
             await updateCallByRoom(room_name, {
-                status: 'failed',
+                status: isMissed ? 'completed' : 'failed',
                 completed_at: new Date().toISOString(),
-                error: error || `SIP ${sipCode}: ${retryReason}`,
-                outcome: retryReason,
+                outcome: 'missed_call',
+                ...(retryReason === 'declined' ? { error: 'SIP 603: Declined' } : {}),
             });
-            await tryTransitionState(room_name, 'failed', { error: `SIP ${sipCode}` });
+            await tryTransitionState(room_name, isMissed ? 'completed' : 'failed', {});
 
             // For sheet-backed calls: write Missed Call to sheet + use sheets retry ladder.
             // This clears "Dialing…" from Col D so the row doesn't get stuck.
