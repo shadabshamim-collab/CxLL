@@ -37,10 +37,10 @@ import config
 DASHBOARD_WEBHOOK_URL = os.getenv("DASHBOARD_WEBHOOK_URL", "http://localhost:3000/api/calls/webhook")
 
 RETRYABLE_SIP_CODES = {
-    486: "busy",
-    480: "no_answer",
-    408: "timeout",
-    503: "service_unavailable",
+    486: "missed_call",
+    480: "missed_call",
+    408: "missed_call",
+    503: "missed_call",
     603: "declined",
 }
 
@@ -507,10 +507,11 @@ async def entrypoint(ctx: agents.JobContext):
             sip_status = _parse_sip_status(error_str)
             if sip_status in RETRYABLE_SIP_CODES:
                 reason = RETRYABLE_SIP_CODES[sip_status]
-                logger.warning(f"SIP {sip_status} ({reason}) for {phone_number} — requesting retry")
+                clean_error = f"SIP {sip_status}: {reason}"
+                logger.info(f"SIP {sip_status} for {phone_number} ({reason}) — will retry")
                 await _notify_dashboard(
                     ctx.room.name, "retry",
-                    error=error_str,
+                    error=clean_error,
                     sip_status=sip_status,
                     reason=reason,
                     phone_number=phone_number,
@@ -518,7 +519,7 @@ async def entrypoint(ctx: agents.JobContext):
                     retry_delay_seconds=RETRY_DELAYS.get(sip_status, 300),
                 )
             else:
-                logger.error(f"Failed to place outbound call: {e}")
+                logger.error(f"Outbound call failed for {phone_number}: SIP {sip_status or 'unknown'}")
                 await _notify_dashboard(ctx.room.name, "failed", error=error_str)
             ctx.shutdown()
     else:
