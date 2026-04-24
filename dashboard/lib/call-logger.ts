@@ -155,7 +155,10 @@ export async function updateCallByRoom(
     const logs = readFileLogs();
     const idx = logs.findIndex(l => l.room_name === room_name);
     if (idx === -1) return null;
-    Object.assign(logs[idx], update);
+    const cleanUpdate = Object.fromEntries(
+        Object.entries(update).filter(([, v]) => v !== undefined && v !== null)
+    );
+    Object.assign(logs[idx], cleanUpdate);
     writeFileLogs(logs);
     return logs[idx];
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { Phone, MessageSquare, Loader2, Sparkles, Megaphone } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Phone, MessageSquare, Loader2, Sparkles, Megaphone, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 
 interface Campaign {
     id: string;
@@ -13,6 +13,18 @@ interface Campaign {
     language: string;
 }
 
+interface HealthCheck {
+    ok: boolean;
+    detail?: string;
+    latency_ms?: number;
+}
+
+interface AgentHealth {
+    status: 'ready' | 'degraded';
+    ready: boolean;
+    checks: Record<string, HealthCheck>;
+}
+
 export default function CallDispatcher() {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [prompt, setPrompt] = useState('');
@@ -20,6 +32,27 @@ export default function CallDispatcher() {
     const [message, setMessage] = useState('');
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [selectedCampaignId, setSelectedCampaignId] = useState('');
+    const [health, setHealth] = useState<AgentHealth | null>(null);
+    const [healthLoading, setHealthLoading] = useState(true);
+
+    const checkHealth = useCallback(async () => {
+        setHealthLoading(true);
+        try {
+            const res = await fetch('/api/agent/health');
+            const data = await res.json();
+            setHealth(data);
+        } catch {
+            setHealth({ status: 'degraded', ready: false, checks: { agent_process: { ok: false, detail: 'dashboard error' } } });
+        } finally {
+            setHealthLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        checkHealth();
+        const interval = setInterval(checkHealth, 30000);
+        return () => clearInterval(interval);
+    }, [checkHealth]);
 
     useEffect(() => {
         fetch('/api/campaigns?status=active')
@@ -74,11 +107,58 @@ export default function CallDispatcher() {
             <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 blur-lg animate-tilt"></div>
 
             <div className="relative p-8 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl">
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
                         Deploy Agent
                     </h2>
                     <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
+                </div>
+
+                {/* Agent Connection Status */}
+                <div className={`flex items-center justify-between p-3 rounded-xl border mb-6 transition-all ${
+                    healthLoading ? 'bg-white/5 border-white/10' :
+                    health?.ready ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'
+                }`}>
+                    <div className="flex items-center gap-3">
+                        {healthLoading ? (
+                            <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                        ) : health?.ready ? (
+                            <Wifi className="w-4 h-4 text-green-400" />
+                        ) : (
+                            <WifiOff className="w-4 h-4 text-red-400" />
+                        )}
+                        <div>
+                            <p className={`text-sm font-medium ${
+                                healthLoading ? 'text-gray-400' :
+                                health?.ready ? 'text-green-300' : 'text-red-300'
+                            }`}>
+                                {healthLoading ? 'Checking connection...' :
+                                 health?.ready ? 'Agent Connected' : 'Agent Offline'}
+                            </p>
+                            {!healthLoading && health && !health.ready && (
+                                <p className="text-xs text-red-400/70 mt-0.5">
+                                    {Object.entries(health.checks)
+                                        .filter(([, c]) => !c.ok)
+                                        .map(([name, c]) => `${name.replace('_', ' ')}: ${c.detail}`)
+                                        .join(' · ')}
+                                </p>
+                            )}
+                            {!healthLoading && health?.ready && health.checks.agent_process?.latency_ms != null && (
+                                <p className="text-xs text-green-400/50 mt-0.5">
+                                    Latency: {health.checks.agent_process.latency_ms}ms · LiveKit: {health.checks.livekit_cloud?.latency_ms}ms
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={checkHealth}
+                        disabled={healthLoading}
+                        className="p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-all disabled:opacity-50"
+                        title="Refresh connection status"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${healthLoading ? 'animate-spin' : ''}`} />
+                    </button>
                 </div>
 
                 <form onSubmit={handleDispatch} className="space-y-6">
@@ -188,13 +268,15 @@ export default function CallDispatcher() {
 
                     <button
                         type="submit"
-                        disabled={status === 'loading'}
+                        disabled={status === 'loading' || (!health?.ready && !healthLoading)}
                         className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0"
                     >
                         {status === 'loading' ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin" /> Dispatching...
                             </>
+                        ) : !health?.ready && !healthLoading ? (
+                            'Agent Offline — Cannot Dispatch'
                         ) : (
                             'Initiate Call'
                         )}
