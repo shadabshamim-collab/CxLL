@@ -174,7 +174,7 @@ export async function POST(request: Request) {
 
             // ── Google Sheets write-back ──────────────────────────────
             if (disposition) {
-                await tryWriteSheetDisposition(room_name, disposition, '');
+                await tryWriteSheetDisposition(room_name, disposition, transcript_preview || '');
             }
 
             return NextResponse.json({ success: true, summary_saved: true, log });
