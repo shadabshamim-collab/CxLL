@@ -130,10 +130,14 @@ export function getISTHour(): number {
 
 export function isInDndWindow(startHour = 21, endHour = 9): boolean {
     const h = getISTHour();
-    return h >= startHour || h < endHour;
+    // Wrap-around window (e.g. 21–09): active if h >= start OR h < end
+    // Same-day window   (e.g. 00–09): active if h >= start AND h < end
+    return startHour > endHour
+        ? h >= startHour || h < endHour
+        : h >= startHour && h < endHour;
 }
 
-// Adjusts a target timestamp (UTC ms) to 09:05 IST if it falls inside the DND window.
+// Adjusts a target timestamp (UTC ms) to endHour:05 IST if it falls inside the DND window.
 export function adjustForDnd(targetMs: number, startHour = 21, endHour = 9): number {
     const IST_OFFSET = 5.5 * 60 * 60 * 1000;
     const targetISTMs = targetMs + IST_OFFSET;
@@ -141,14 +145,16 @@ export function adjustForDnd(targetMs: number, startHour = 21, endHour = 9): num
     const h = d.getUTCHours();
     const m = d.getUTCMinutes();
 
-    const inDnd = h >= startHour || h < endHour || (h === endHour && m < 5);
+    const wraps = startHour > endHour;
+    const inDnd = wraps
+        ? h >= startHour || h < endHour || (h === endHour && m < 5)
+        : h >= startHour && (h < endHour || (h === endHour && m < 5));
     if (!inDnd) return targetMs;
 
-    // Push to 09:05 IST same day or next day
     const morning = new Date(targetISTMs);
     morning.setUTCHours(endHour, 5, 0, 0);
-    if (h >= startHour) {
-        // After 21:00 IST → next calendar day 09:05
+    // For wrap-around windows, advance to next day only when in the evening portion
+    if (wraps && h >= startHour) {
         morning.setUTCDate(morning.getUTCDate() + 1);
     }
     return morning.getTime() - IST_OFFSET;
