@@ -44,7 +44,7 @@
     "max_attempts": 4
   },
   "dnd_window_ist": {
-    "start_hour": 21,
+    "start_hour": 0,
     "end_hour": 9
   },
   "max_concurrent_calls": 20,
