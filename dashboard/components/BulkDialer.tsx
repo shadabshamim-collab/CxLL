@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Users, FileText, Loader2, CheckCircle, AlertCircle, Megaphone, Upload } from 'lucide-react';
+import { Users, FileText, Loader2, CheckCircle, AlertCircle, Megaphone, Upload, Sheet, Phone, RefreshCw } from 'lucide-react';
 
 interface Campaign {
     id: string;
@@ -10,15 +10,20 @@ interface Campaign {
     status: string;
     model_provider: string;
     voice_id: string;
+    lead_source?: { type: string; sheet_id?: string; tab_name?: string };
 }
+
+type LeadMode = 'manual' | 'sheets';
 
 export default function BulkDialer() {
     const [input, setInput] = useState('');
     const [prompt, setPrompt] = useState('');
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [results, setResults] = useState<any[]>([]);
+    const [syncResult, setSyncResult] = useState<any>(null);
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [selectedCampaignId, setSelectedCampaignId] = useState('');
+    const [leadMode, setLeadMode] = useState<LeadMode>('manual');
 
     useEffect(() => {
         fetch('/api/campaigns?status=active')
@@ -29,6 +34,16 @@ export default function BulkDialer() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
+    const isSheetsCampaign = selectedCampaign?.lead_source?.type === 'google_sheets';
+
+    // Auto-reset mode when switching campaigns
+    const handleCampaignChange = (id: string) => {
+        setSelectedCampaignId(id);
+        const campaign = campaigns.find(c => c.id === id);
+        if (campaign?.lead_source?.type !== 'google_sheets') setLeadMode('manual');
+        setSyncResult(null);
+        setStatus('idle');
+    };
 
     const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -40,30 +55,45 @@ export default function BulkDialer() {
             for (const line of text.split('\n')) {
                 for (const col of line.split(',')) {
                     const cleaned = col.trim().replace(/["\s]/g, '');
-                    if (cleaned.match(/^\+?\d{10,15}$/)) {
-                        numbers.push(cleaned);
-                    }
+                    if (cleaned.match(/^\+?\d{10,15}$/)) numbers.push(cleaned);
                 }
             }
             if (numbers.length > 0) {
                 setInput(prev => prev ? prev + '\n' + numbers.join('\n') : numbers.join('\n'));
+                setLeadMode('manual');
             }
         };
         reader.readAsText(file);
         e.target.value = '';
     };
 
-    const handleBulkDispatch = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setStatus('loading');
         setResults([]);
+        setSyncResult(null);
 
-        const numbers = input.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0);
-
-        if (numbers.length === 0) {
-            setStatus('error');
+        // ── Google Sheet mode ────────────────────────────────────────────
+        if (leadMode === 'sheets') {
+            try {
+                const res = await fetch('/api/campaigns/sheets-sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ campaignId: selectedCampaignId }),
+                });
+                const data = await res.json();
+                setSyncResult(data);
+                setStatus(res.ok ? 'success' : 'error');
+            } catch (err: any) {
+                setSyncResult({ error: err.message });
+                setStatus('error');
+            }
             return;
         }
+
+        // ── Manual mode ──────────────────────────────────────────────────
+        const numbers = input.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0);
+        if (numbers.length === 0) { setStatus('error'); return; }
 
         try {
             const res = await fetch('/api/queue', {
@@ -77,15 +107,9 @@ export default function BulkDialer() {
                     voice: selectedCampaign?.voice_id,
                 }),
             });
-
             const data = await res.json();
             setResults(data.results || []);
-
-            if (res.ok) {
-                setStatus('success');
-            } else {
-                setStatus('error');
-            }
+            setStatus(res.ok ? 'success' : 'error');
         } catch (err: any) {
             setStatus('error');
         }
@@ -103,7 +127,7 @@ export default function BulkDialer() {
                     <Users className="w-5 h-5 text-teal-400" />
                 </div>
 
-                <form onSubmit={handleBulkDispatch} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Campaign Selector */}
                     <div className="space-y-2">
                         <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
@@ -111,7 +135,7 @@ export default function BulkDialer() {
                         </label>
                         <select
                             value={selectedCampaignId}
-                            onChange={(e) => setSelectedCampaignId(e.target.value)}
+                            onChange={(e) => handleCampaignChange(e.target.value)}
                             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-green-500"
                         >
                             <option value="">Custom (No Campaign)</option>
@@ -127,44 +151,93 @@ export default function BulkDialer() {
                         )}
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
-                            <Users className="w-4 h-4" /> Phone Numbers
-                        </label>
-                        <textarea
-                            placeholder="+919876543210&#10;+919988776655&#10;+12125551234"
-                            required
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300 h-28 resize-none font-mono text-sm"
-                        />
-                        <div className="flex items-center justify-between">
+                    {/* Lead Source Tabs */}
+                    <div className="space-y-4">
+                        <div className="flex rounded-xl overflow-hidden border border-white/10 text-sm">
                             <button
                                 type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1 transition-colors"
+                                onClick={() => setLeadMode('manual')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 transition-colors ${
+                                    leadMode === 'manual'
+                                        ? 'bg-green-600/30 text-green-300'
+                                        : 'bg-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/10'
+                                }`}
                             >
-                                <Upload className="w-3 h-3" /> Upload CSV
+                                <Phone className="w-3.5 h-3.5" /> Type / CSV
                             </button>
-                            <input ref={fileInputRef} type="file" accept=".csv,.txt" onChange={handleCSVUpload} className="hidden" />
-                            <p className="text-xs text-gray-500">
-                                {input.split(/[\n,]+/).filter(s => s.trim()).length || 0} numbers
-                            </p>
+                            {isSheetsCampaign && (
+                                <button
+                                    type="button"
+                                    onClick={() => setLeadMode('sheets')}
+                                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 border-l border-white/10 transition-colors ${
+                                        leadMode === 'sheets'
+                                            ? 'bg-emerald-600/30 text-emerald-300'
+                                            : 'bg-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/10'
+                                    }`}
+                                >
+                                    <Sheet className="w-3.5 h-3.5" /> Google Sheet
+                                </button>
+                            )}
                         </div>
+
+                        {/* Manual input */}
+                        {leadMode === 'manual' && (
+                            <div className="space-y-2">
+                                <textarea
+                                    placeholder="+919876543210&#10;+919988776655&#10;+12125551234"
+                                    required
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300 h-28 resize-none font-mono text-sm"
+                                />
+                                <div className="flex items-center justify-between">
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1 transition-colors"
+                                    >
+                                        <Upload className="w-3 h-3" /> Upload CSV
+                                    </button>
+                                    <input ref={fileInputRef} type="file" accept=".csv,.txt" onChange={handleCSVUpload} className="hidden" />
+                                    <p className="text-xs text-gray-500">
+                                        {input.split(/[\n,]+/).filter(s => s.trim()).length || 0} numbers
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Google Sheet info */}
+                        {leadMode === 'sheets' && selectedCampaign?.lead_source && (
+                            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+                                <div className="flex items-center gap-2 text-emerald-300 text-sm font-medium">
+                                    <Sheet className="w-4 h-4" /> Google Sheet
+                                </div>
+                                <div className="text-xs text-gray-400 space-y-1 font-mono">
+                                    <div>Sheet ID: <span className="text-gray-300">{selectedCampaign.lead_source.sheet_id?.slice(0, 24)}…</span></div>
+                                    <div>Tab: <span className="text-gray-300">{selectedCampaign.lead_source.tab_name || 'Leads'}</span></div>
+                                </div>
+                                <p className="text-xs text-emerald-400/70">
+                                    Reads all rows where Col D (Disposition) is empty, writes "Dialing…" sentinel before each call.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
-                            <FileText className="w-4 h-4" /> {selectedCampaignId ? 'Additional Instructions (Optional)' : 'Campaign Context'}
-                        </label>
-                        <input
-                            type="text"
-                            placeholder={selectedCampaignId ? "e.g. Focus on premium customers..." : "e.g. Survey about recent purchase..."}
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300"
-                        />
-                    </div>
+                    {/* Additional instructions (manual mode only) */}
+                    {leadMode === 'manual' && (
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
+                                <FileText className="w-4 h-4" /> {selectedCampaignId ? 'Additional Instructions (Optional)' : 'Campaign Context'}
+                            </label>
+                            <input
+                                type="text"
+                                placeholder={selectedCampaignId ? "e.g. Focus on premium customers..." : "e.g. Survey about recent purchase..."}
+                                value={prompt}
+                                onChange={(e) => setPrompt(e.target.value)}
+                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-gray-600 outline-none transition-all duration-300"
+                            />
+                        </div>
+                    )}
 
                     <button
                         type="submit"
@@ -172,15 +245,42 @@ export default function BulkDialer() {
                         className="w-full py-4 px-6 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-lg hover:shadow-green-500/25 transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0"
                     >
                         {status === 'loading' ? (
-                            <>
-                                <Loader2 className="w-5 h-5 animate-spin" /> Processing Queue...
-                            </>
+                            <><Loader2 className="w-5 h-5 animate-spin" /> {leadMode === 'sheets' ? 'Syncing Sheet…' : 'Processing Queue…'}</>
+                        ) : leadMode === 'sheets' ? (
+                            <><RefreshCw className="w-4 h-4" /> Sync & Dispatch from Sheet</>
                         ) : (
                             'Launch Campaign'
                         )}
                     </button>
 
-                    {status === 'success' && (
+                    {/* Sync result */}
+                    {syncResult && (
+                        <div className={`p-4 rounded-xl text-sm border animate-in fade-in slide-in-from-bottom-2 space-y-1 ${
+                            status === 'success' ? 'bg-green-500/10 text-green-200 border-green-500/20' : 'bg-red-500/10 text-red-200 border-red-500/20'
+                        }`}>
+                            {syncResult.message ? (
+                                <p>{syncResult.message}</p>
+                            ) : syncResult.error ? (
+                                <p>{syncResult.error}</p>
+                            ) : (
+                                <>
+                                    <p className="font-medium">{syncResult.dispatched} call{syncResult.dispatched !== 1 ? 's' : ''} dispatched</p>
+                                    {syncResult.available_leads !== undefined && (
+                                        <p className="text-xs opacity-70">{syncResult.available_leads} undialed leads found · Tab: {syncResult.tab}</p>
+                                    )}
+                                    {syncResult.failed > 0 && (
+                                        <p className="text-red-400 text-xs">{syncResult.failed} failed</p>
+                                    )}
+                                    {syncResult.errors?.map((err: string, i: number) => (
+                                        <p key={i} className="text-red-400 text-xs font-mono">{err}</p>
+                                    ))}
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Manual dispatch results */}
+                    {status === 'success' && results.length > 0 && (
                         <div className="max-h-40 overflow-y-auto space-y-2 mt-4 custom-scrollbar">
                             {results.map((res, i) => (
                                 <div key={i} className="flex items-center justify-between p-2 rounded bg-white/5 text-xs">

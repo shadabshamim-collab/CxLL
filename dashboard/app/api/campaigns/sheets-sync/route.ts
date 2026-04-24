@@ -8,30 +8,14 @@ import {
     isInDndWindow,
 } from '@/lib/google-sheets';
 
-// GET /api/campaigns/sheets-sync?campaign=<id>
-// Called by an EKS CronJob or Vercel Cron. See README.md in this directory.
-// Auth: x-sync-secret header (or Authorization: Bearer <secret>).
-export async function GET(request: Request) {
-    // ── Auth ──────────────────────────────────────────────────────────
-    const secret = process.env.SHEETS_SYNC_CRON_SECRET;
-    if (secret) {
-        const provided =
-            request.headers.get('x-sync-secret') ||
-            request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-        if (provided !== secret) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-    }
+// ── Shared sync logic ─────────────────────────────────────────────────────────
 
-    // ── Config check ─────────────────────────────────────────────────
+async function runSync(campaignId: string | null): Promise<NextResponse> {
     if (!isGoogleSheetsConfigured()) {
         return NextResponse.json({ error: 'GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON not configured' }, { status: 503 });
     }
-
-    const { searchParams } = new URL(request.url);
-    const campaignId = searchParams.get('campaign');
     if (!campaignId) {
-        return NextResponse.json({ error: 'campaign query param is required' }, { status: 400 });
+        return NextResponse.json({ error: 'campaign is required' }, { status: 400 });
     }
 
     const campaign = getCampaignById(campaignId);
@@ -79,27 +63,23 @@ export async function GET(request: Request) {
 
     for (const lead of batch) {
         try {
-            // Substitute {{user_name}} in greeting + system prompt before dispatch
             const userNameSafe = lead.user_name.replace(/['"<>]/g, '');
             const greeting = campaign.initial_greeting.replace(/\{\{user_name\}\}/g, userNameSafe);
             const systemPrompt = campaign.system_prompt.replace(/\{\{user_name\}\}/g, userNameSafe);
 
             const newAttemptCount = lead.attempt_count + 1;
 
-            // 1. Write sentinel BEFORE dispatching (prevents double-dial on overlapping polls)
+            // Write sentinel BEFORE dispatching (prevents double-dial on overlapping polls)
             await writeDispositionSentinel(sheetId, tabName, lead.rowIndex, newAttemptCount);
 
-            // 2. Dispatch call
             const dispatchRes = await fetch(`${baseUrl}/api/dispatch`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     phoneNumber: lead.secondary_mobile,
                     campaignId: campaign.id,
-                    // Pass substituted prompt overrides; dispatch route embeds these in metadata
                     overrideSystemPrompt: systemPrompt,
                     overrideGreeting: greeting,
-                    // Carry sheet context for the webhook to write back
                     sheets_meta: {
                         urn: lead.urn,
                         user_name: lead.user_name,
@@ -118,7 +98,6 @@ export async function GET(request: Request) {
 
             const { roomName } = await dispatchRes.json();
 
-            // 3. Store Redis key for the webhook to use
             if (roomName) {
                 await storeSheetsMeta(roomName, {
                     urn: lead.urn,
@@ -147,4 +126,27 @@ export async function GET(request: Request) {
         failed,
         ...(errors.length ? { errors } : {}),
     });
+}
+
+// ── GET — external cron (requires x-sync-secret or Authorization: Bearer) ────
+
+export async function GET(request: Request) {
+    const secret = process.env.SHEETS_SYNC_CRON_SECRET;
+    if (secret) {
+        const provided =
+            request.headers.get('x-sync-secret') ||
+            request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+        if (provided !== secret) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+    }
+    const { searchParams } = new URL(request.url);
+    return runSync(searchParams.get('campaign'));
+}
+
+// ── POST — dashboard UI (no secret required; same-origin internal call) ───────
+
+export async function POST(request: Request) {
+    const { campaignId } = await request.json().catch(() => ({}));
+    return runSync(campaignId ?? null);
 }
