@@ -25,7 +25,7 @@
   ],
   "lead_source": {
     "type": "google_sheets",
-    "sheet_id": "",
+    "sheet_id": "108ksoVbG9vvTJ00wLLXEN29G7SMz5RwKxvl9FQKiigQ",
     "tab_name": "Leads",
     "poll_interval_seconds": 300
   },
