@@ -74,7 +74,7 @@ async function tryScheduleRetry(
 async function tryWriteSheetDisposition(
     roomName: string,
     disposition: string,
-    notes: string
+    details: { notes?: string; sentiment?: string; durationSeconds?: number; turnCount?: number }
 ): Promise<void> {
     try {
         const { getSheetsMeta, writeDisposition, isValidDisposition } = await import('@/lib/google-sheets');
@@ -89,8 +89,8 @@ async function tryWriteSheetDisposition(
             console.warn(`[Webhook] Unknown disposition "${disposition}" for ${roomName} — defaulting to "Not Verified"`);
         }
 
-        await writeDisposition(meta.sheet_id, meta.tab_name, meta.row_index, safeDisp, roomName, notes);
-        console.log(`[Webhook] Sheet row ${meta.row_index} (URN ${meta.urn}) → ${safeDisp}`);
+        await writeDisposition(meta.sheet_id, meta.tab_name, meta.row_index, safeDisp, roomName, details);
+        console.log(`[Webhook] Sheet row ${meta.row_index} (URN ${meta.urn}) → ${safeDisp} | sentiment=${details.sentiment} duration=${details.durationSeconds}s turns=${details.turnCount}`);
 
         // If Missed Call, trigger retry ladder
         if (safeDisp === 'Missed Call') {
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { room_name, status, duration_seconds, outcome, error,
-                disposition, sentiment, transcript_preview, turn_count,
+                disposition, sentiment, transcript_preview, turn_count, notes,
                 campaign_id, phone_number, sip_status, reason, retry_delay_seconds } = body;
 
         if (!room_name) {
@@ -174,7 +174,12 @@ export async function POST(request: Request) {
 
             // ── Google Sheets write-back ──────────────────────────────
             if (disposition) {
-                await tryWriteSheetDisposition(room_name, disposition, transcript_preview || '');
+                await tryWriteSheetDisposition(room_name, disposition, {
+                    notes: transcript_preview || notes || '',
+                    sentiment: sentiment || '',
+                    durationSeconds: duration_seconds,
+                    turnCount: turn_count,
+                });
             }
 
             return NextResponse.json({ success: true, summary_saved: true, log });

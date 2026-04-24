@@ -54,9 +54,10 @@ async function main() {
     console.log('✓ Access token obtained');
 
     // Row 1: headers
-    await writeRange(token, `${TAB_NAME}!A1:H1`, [[
+    await writeRange(token, `${TAB_NAME}!A1:K1`, [[
         'URN', 'User Name', 'Secondary Mobile', 'Disposition',
         'Attempt Count', 'Last Call Timestamp (IST)', 'Call SID', 'Notes',
+        'Sentiment', 'Duration (s)', 'Turn Count',
     ]]);
     console.log('✓ Headers written to row 1');
 
