@@ -257,28 +257,39 @@ export async function writeDisposition(
     });
 }
 
-// ── Redis meta store (room_name → sheet row context) ─────────────────────────
+// ── SheetsMeta store (Redis with in-process fallback) ────────────────────────
+// Redis is the primary store (survives restarts, works multi-instance).
+// The in-process Map is a fallback for deployments without Redis — it keeps
+// meta alive for the lifetime of the Node.js process (sufficient for a single
+// call cycle which completes in minutes, well within the 48-h TTL intent).
 
 const META_PREFIX = 'sheets:call:';
-const META_TTL_SECONDS = 48 * 3600; // 48 h covers up to 4 attempts (max ~25 h total)
+const META_TTL_SECONDS = 48 * 3600;
+const _metaFallback = new Map<string, { meta: SheetsMeta; expiresAt: number }>();
 
 export async function storeSheetsMeta(roomName: string, meta: SheetsMeta): Promise<void> {
+    // Always store in-process first (zero-latency fallback)
+    _metaFallback.set(roomName, { meta, expiresAt: Date.now() + META_TTL_SECONDS * 1000 });
     try {
         const { getRedis } = await import('./redis');
         const redis = getRedis();
         await redis.setex(`${META_PREFIX}${roomName}`, META_TTL_SECONDS, JSON.stringify(meta));
-    } catch (e) {
-        console.warn('[Sheets] Redis unavailable — SheetsMeta not stored for', roomName);
+    } catch {
+        // Redis unavailable — in-process fallback is active
     }
 }
 
 export async function getSheetsMeta(roomName: string): Promise<SheetsMeta | null> {
+    // Try Redis first
     try {
         const { getRedis } = await import('./redis');
         const redis = getRedis();
         const raw = await redis.get(`${META_PREFIX}${roomName}`);
-        return raw ? (JSON.parse(raw) as SheetsMeta) : null;
-    } catch {
-        return null;
-    }
+        if (raw) return JSON.parse(raw) as SheetsMeta;
+    } catch { /* fall through */ }
+
+    // In-process fallback
+    const entry = _metaFallback.get(roomName);
+    if (entry && Date.now() < entry.expiresAt) return entry.meta;
+    return null;
 }
