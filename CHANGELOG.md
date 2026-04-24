@@ -1,5 +1,31 @@
 # Changelog
 
+## [Unreleased] — Google Sheets Lead Source + Primary Number Verification (2026-04-24)
+
+### Added
+- **Google Sheets adapter** (`dashboard/lib/google-sheets.ts`) — bidirectional adapter using `google-auth-library` JWT + raw Sheets REST API. Reads undialed leads (Col D empty), writes `Dialing…` sentinel before dispatch, writes final disposition after call. Never touches Col A/B/C.
+- **Primary Number Verification campaign** (`agent/campaigns/primary-number-verification.json`) — K2R use case: Hinglish (Sarvam Anushka + Groq), 4-disposition taxonomy (Verified / Not Verified / Callback Requested / Missed Call), 3-step retry ladder (+2 h / +6 h / +16 h), DND 21:00–09:00 IST.
+- **Sheets sync cron** (`/api/campaigns/sheets-sync`) — polls sheet, writes sentinels, dispatches calls with `{{user_name}}` substitution. Secured with bearer token.
+- **Unit tests** (`dashboard/tests/google-sheets.test.ts`) — 20+ Vitest tests covering E.164 normalization, DND adjustment, disposition taxonomy, sentinel/write API calls, and row-skipping logic.
+
+### Modified
+- `agent/agent.py` — `_analyze_verification_call()` with tie-breaker rules per §6.3; routes to it when `campaign_id == "primary-number-verification"`; no-transcript → Missed Call for verification calls.
+- `dashboard/app/api/calls/webhook/route.ts` — writes disposition to sheet row after call; schedules DND-aware retries via BullMQ for Missed Call.
+- `dashboard/app/api/dispatch/route.ts` — accepts `sheets_meta` + prompt overrides from cron.
+- `dashboard/lib/call-queue.ts` — `CallJobData` carries optional `sheets_meta`; worker stores Redis key.
+- `dashboard/lib/campaigns.ts` — `Campaign` interface extended with `lead_source`, `retry_ladder`, `dnd_window_ist`, `disposition_taxonomy`.
+- `dashboard/app/campaigns/page.tsx` — Sheets badge on sheet-backed campaigns.
+- `dashboard/components/CallDispatcher.tsx` — informational banner when selected campaign uses Sheets.
+- `k8s/secrets.yaml` — added `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON`, `GOOGLE_SHEETS_DEFAULT_SHEET_ID`, `SHEETS_SYNC_CRON_SECRET` placeholders.
+
+### Design decisions
+- **`google-auth-library` only** (not `googleapis`) — mirrors `airtable.ts` raw-fetch pattern; 21 packages vs ~200.
+- **Sentinel before dispatch** — simplest double-dispatch prevention without distributed locks.
+- **`sheets_meta` in Redis** — keeps LiveKit metadata lean; 48 h TTL covers all 4 retry cycles.
+- **Retry via existing BullMQ** — no new infrastructure; `sheets_meta` travels in job payload.
+
+---
+
 ## v2.0.0 — Platform Upgrade (2026-04-22)
 
 Major upgrade from a single-agent demo to a production-grade multi-campaign calling platform.

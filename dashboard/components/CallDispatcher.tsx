@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Phone, MessageSquare, Loader2, Sparkles, Megaphone, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Phone, MessageSquare, Loader2, Sparkles, Megaphone, Wifi, WifiOff, RefreshCw, Sheet } from 'lucide-react';
 
 interface Campaign {
     id: string;
@@ -11,6 +11,7 @@ interface Campaign {
     model_provider: string;
     voice_id: string;
     language: string;
+    lead_source?: { type: string; tab_name?: string };
 }
 
 interface HealthCheck {
@@ -178,7 +179,17 @@ export default function CallDispatcher() {
                             ))}
                         </select>
                         {selectedCampaign && (
-                            <p className="text-xs text-gray-500">{selectedCampaign.description}</p>
+                            <div className="space-y-1">
+                                <p className="text-xs text-gray-500">{selectedCampaign.description}</p>
+                                {selectedCampaign.lead_source?.type === 'google_sheets' && (
+                                    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-500/15 border border-emerald-500/25 rounded text-emerald-300">
+                                        <Sheet className="w-3 h-3" />
+                                        Lead source: Google Sheet
+                                        {selectedCampaign.lead_source.tab_name ? ` · ${selectedCampaign.lead_source.tab_name}` : ''}
+                                        {' '}— calls dispatched by cron, not manually
+                                    </span>
+                                )}
+                            </div>
                         )}
                     </div>
 

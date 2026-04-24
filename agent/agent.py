@@ -135,7 +135,84 @@ async def _analyze_call_transcript(transcript: str) -> dict:
     return {}
 
 
-async def _post_call_summary(session: AgentSession, room_name: str, duration: int, campaign_id: str = None):
+# 4-value taxonomy for primary-number-verification campaign
+_VERIFICATION_DISPOSITIONS = {"Verified", "Not Verified", "Callback Requested", "Missed Call"}
+
+
+async def _analyze_verification_call(transcript: str, user_name: str) -> dict:
+    """Classify a verification call into exactly one of 4 dispositions.
+
+    Tie-breaker rules (from campaign spec §6.3):
+    - Confirmed name but asks to call later → Verified (confirmation wins)
+    - "haan bol raha hoon" without explicit name → Verified (implicit confirmation)
+    - Connected but cut off before confirmation → Not Verified
+    - Answering machine / IVR → Missed Call
+    """
+    api_key = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
+    if not api_key or not transcript.strip():
+        return {"disposition": "Missed Call", "outcome": "no_answer", "sentiment": "neutral"}
+
+    base_url = "https://api.groq.com/openai/v1" if os.getenv("GROQ_API_KEY") else "https://api.openai.com/v1"
+    model = "llama-3.1-8b-instant" if os.getenv("GROQ_API_KEY") else "gpt-4o-mini"
+
+    system_msg = (
+        f"You are classifying a number-verification call made on behalf of Ring (formerly Kissht). "
+        f"The agent was calling to confirm whether the person is '{user_name}'. "
+        "Return JSON with exactly these fields:\n"
+        "  \"disposition\": one of [\"Verified\", \"Not Verified\", \"Callback Requested\", \"Missed Call\"]\n"
+        "  \"sentiment\": one of [\"positive\", \"neutral\", \"negative\", \"frustrated\"]\n"
+        "  \"notes\": optional free text under 80 chars (e.g. callback time requested)\n\n"
+        "Tie-breaker rules:\n"
+        f"- Person confirms being '{user_name}' but asks to call later → Verified\n"
+        "- Person says 'haan' / 'yes' / 'bol' without naming themselves, in response to a "
+        f"  greeting that already named '{user_name}' → Verified (implicit)\n"
+        "- Call connected but ended before any confirmation → Not Verified\n"
+        "- No answer / voicemail / IVR / auto-reject → Missed Call\n"
+        "- Person explicitly denies being the named individual → Not Verified"
+    )
+
+    try:
+        async with aiohttp.ClientSession() as http:
+            resp = await http.post(
+                f"{base_url}/chat/completions",
+                json={
+                    "model": model,
+                    "temperature": 0.0,
+                    "response_format": {"type": "json_object"},
+                    "messages": [
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": transcript},
+                    ],
+                },
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=aiohttp.ClientTimeout(total=10),
+            )
+            if resp.status == 200:
+                result = await resp.json()
+                parsed = json.loads(result["choices"][0]["message"]["content"])
+                disp = parsed.get("disposition", "")
+                if disp not in _VERIFICATION_DISPOSITIONS:
+                    logger.warning(
+                        f"Verification LLM returned unknown disposition '{disp}' — defaulting to 'Not Verified'"
+                    )
+                    parsed["disposition"] = "Not Verified"
+                parsed["outcome"] = disp.lower().replace(" ", "_")
+                return parsed
+    except Exception as e:
+        logger.warning(f"Verification call analysis failed: {e}")
+    return {"disposition": "Not Verified", "outcome": "not_verified", "sentiment": "neutral"}
+
+
+async def _post_call_summary(
+    session: AgentSession,
+    room_name: str,
+    duration: int,
+    campaign_id: str = None,
+    user_name: str = "",
+):
     """Extract transcript from session, analyze it, and send summary to dashboard."""
     try:
         transcript_lines = []
@@ -160,12 +237,23 @@ async def _post_call_summary(session: AgentSession, room_name: str, duration: in
 
         if transcript_lines:
             transcript = "\n".join(transcript_lines[-30:])
-            analysis = await _analyze_call_transcript(transcript)
+
+            # Route to verification-specific classifier for K2R campaign
+            if campaign_id == "primary-number-verification":
+                analysis = await _analyze_verification_call(transcript, user_name or "the customer")
+            else:
+                analysis = await _analyze_call_transcript(transcript)
+
             if analysis:
                 summary.update(analysis)
             summary["transcript_preview"] = transcript[:500]
         else:
-            summary["outcome"] = "no_conversation"
+            # No transcript — treat as missed call for verification, no_conversation otherwise
+            if campaign_id == "primary-number-verification":
+                summary["disposition"] = "Missed Call"
+                summary["outcome"] = "missed_call"
+            else:
+                summary["outcome"] = "no_conversation"
 
         await _notify_dashboard(room_name, "summary", **summary)
         logger.info(f"Post-call summary sent for {room_name}: {summary.get('outcome', 'unknown')}")
@@ -362,12 +450,13 @@ async def entrypoint(ctx: agents.JobContext):
 
     call_start_time = None
     campaign_id = config_dict.get("campaign_id")
+    user_name = config_dict.get("user_name", "")
 
     @ctx.room.on("disconnected")
     def _on_disconnect():
         duration = int(time.time() - call_start_time) if call_start_time else 0
         asyncio.ensure_future(_notify_dashboard(ctx.room.name, "completed", duration_seconds=duration))
-        asyncio.ensure_future(_post_call_summary(session, ctx.room.name, duration, campaign_id))
+        asyncio.ensure_future(_post_call_summary(session, ctx.room.name, duration, campaign_id, user_name))
 
     await session.start(
         room=ctx.room,

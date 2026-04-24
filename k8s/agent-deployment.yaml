@@ -23,6 +23,15 @@ spec:
                 name: voice-agent-secrets
             - configMapRef:
                 name: voice-agent-config
+          env:
+            # GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON is injected from secret above via envFrom.
+            # The dashboard (not the agent) handles Sheets I/O, so no extra mount needed.
+            - name: DASHBOARD_WEBHOOK_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: voice-agent-config
+                  key: DASHBOARD_WEBHOOK_URL
+                  optional: true
           resources:
             requests:
               cpu: 250m

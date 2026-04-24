@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Pencil, Copy, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Copy, ToggleLeft, ToggleRight, Loader2, Sheet } from 'lucide-react';
+
+interface CampaignLeadSource {
+    type: 'google_sheets' | 'csv' | 'api';
+    sheet_id?: string;
+    tab_name?: string;
+}
 
 interface Campaign {
     id: string;
@@ -14,6 +20,7 @@ interface Campaign {
     language: string;
     current_version: number;
     updated_at: string;
+    lead_source?: CampaignLeadSource;
 }
 
 export default function CampaignsPage() {
@@ -123,10 +130,16 @@ export default function CampaignsPage() {
                                         <span className="text-xs text-gray-600">v{c.current_version}</span>
                                     </div>
                                     <p className="text-sm text-gray-500 truncate">{c.description}</p>
-                                    <div className="flex gap-3 mt-3">
+                                    <div className="flex flex-wrap gap-2 mt-3">
                                         <span className="text-xs px-2 py-1 bg-white/5 rounded text-gray-400">{c.model_provider}</span>
                                         <span className="text-xs px-2 py-1 bg-white/5 rounded text-gray-400">{c.voice_id}</span>
                                         <span className="text-xs px-2 py-1 bg-white/5 rounded text-gray-400">{c.language}</span>
+                                        {c.lead_source?.type === 'google_sheets' && (
+                                            <span className="text-xs px-2 py-1 bg-emerald-500/15 border border-emerald-500/25 rounded text-emerald-300 flex items-center gap-1">
+                                                <Sheet className="w-3 h-3" />
+                                                Sheets{c.lead_source.tab_name ? ` · ${c.lead_source.tab_name}` : ''}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 

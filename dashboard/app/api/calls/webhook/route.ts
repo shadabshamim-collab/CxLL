@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { updateCallByRoom, logCallDispatched } from '@/lib/call-logger';
+import type { VerificationDisposition } from '@/lib/google-sheets';
+import { getCampaignById } from '@/lib/campaigns';
+import { adjustForDnd } from '@/lib/google-sheets';
 
 async function tryTransitionState(room_name: string, status: string, extra?: any): Promise<boolean> {
     try {
@@ -17,7 +20,12 @@ async function tryTransitionState(room_name: string, status: string, extra?: any
     return false;
 }
 
-async function tryScheduleRetry(phoneNumber: string, campaignId: string | undefined, delaySeconds: number): Promise<boolean> {
+async function tryScheduleRetry(
+    phoneNumber: string,
+    campaignId: string | undefined,
+    delaySeconds: number,
+    sheets_meta?: any
+): Promise<boolean> {
     if (delaySeconds <= 0) return false;
 
     // Try BullMQ queue first
@@ -35,6 +43,7 @@ async function tryScheduleRetry(phoneNumber: string, campaignId: string | undefi
                 model_provider: '',
                 voice_id: '',
                 scheduled_at: new Date(Date.now() + delaySeconds * 1000).toISOString(),
+                ...(sheets_meta ? { sheets_meta } : {}),
             });
             return true;
         }
@@ -60,6 +69,87 @@ async function tryScheduleRetry(phoneNumber: string, campaignId: string | undefi
     return true;
 }
 
+// ── Google Sheets helpers ─────────────────────────────────────────────────────
+
+async function tryWriteSheetDisposition(
+    roomName: string,
+    disposition: string,
+    notes: string
+): Promise<void> {
+    try {
+        const { getSheetsMeta, writeDisposition, isValidDisposition } = await import('@/lib/google-sheets');
+        const meta = await getSheetsMeta(roomName);
+        if (!meta) return; // not a sheets-backed call
+
+        const safeDisp = isValidDisposition(disposition)
+            ? disposition
+            : 'Not Verified';
+
+        if (!isValidDisposition(disposition)) {
+            console.warn(`[Webhook] Unknown disposition "${disposition}" for ${roomName} — defaulting to "Not Verified"`);
+        }
+
+        await writeDisposition(meta.sheet_id, meta.tab_name, meta.row_index, safeDisp, roomName, notes);
+        console.log(`[Webhook] Sheet row ${meta.row_index} (URN ${meta.urn}) → ${safeDisp}`);
+
+        // If Missed Call, trigger retry ladder
+        if (safeDisp === 'Missed Call') {
+            await tryScheduleSheetsRetry(roomName, undefined, undefined, meta);
+        }
+    } catch (e) {
+        console.error('[Webhook] Failed to write sheet disposition:', e);
+    }
+}
+
+async function tryScheduleSheetsRetry(
+    roomName: string,
+    phoneNumber?: string,
+    campaignId?: string,
+    existingMeta?: any
+): Promise<void> {
+    try {
+        const { getSheetsMeta, writeDispositionSentinel } = await import('@/lib/google-sheets');
+        const meta = existingMeta || await getSheetsMeta(roomName);
+        if (!meta) return;
+
+        const campaign = getCampaignById(meta.campaign_id || campaignId || '');
+        const retryLadder = campaign?.retry_ladder;
+        const maxAttempts = retryLadder?.max_attempts || 4;
+
+        if (meta.attempt_count >= maxAttempts) {
+            console.log(`[Webhook] URN ${meta.urn} reached max attempts (${maxAttempts}). No more retries.`);
+            return;
+        }
+
+        const stepIndex = meta.attempt_count - 1; // attempt 1 → step 0
+        const step = retryLadder?.on_missed_call?.[stepIndex];
+        const delayMinutes = step?.delay_minutes || 120;
+        const rawTargetMs = Date.now() + delayMinutes * 60 * 1000;
+        const dnd = campaign?.dnd_window_ist || { start_hour: 21, end_hour: 9 };
+        const targetMs = adjustForDnd(rawTargetMs, dnd.start_hour, dnd.end_hour);
+        const delaySeconds = Math.round((targetMs - Date.now()) / 1000);
+
+        // Write sentinel for the next attempt immediately (so the cron doesn't re-pick it)
+        const newAttemptCount = meta.attempt_count + 1;
+        await writeDispositionSentinel(meta.sheet_id, meta.tab_name, meta.row_index, newAttemptCount);
+
+        // Carry sheets_meta forward in the retry job
+        const updatedMeta = { ...meta, attempt_count: newAttemptCount };
+        const scheduled = await tryScheduleRetry(
+            phoneNumber || meta.urn, // phone is not stored in meta; use URN as fallback id
+            meta.campaign_id || campaignId,
+            delaySeconds,
+            updatedMeta
+        );
+
+        if (scheduled) {
+            console.log(`[Webhook] Retry ${newAttemptCount}/${maxAttempts} scheduled for URN ${meta.urn} in ${Math.round(delaySeconds / 60)}m`);
+        }
+    } catch (e) {
+        console.error('[Webhook] Failed to schedule sheets retry:', e);
+    }
+}
+
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -81,7 +171,19 @@ export async function POST(request: Request) {
             if (turn_count !== undefined) summaryUpdate.turn_count = turn_count;
 
             const log = await updateCallByRoom(room_name, summaryUpdate);
+
+            // ── Google Sheets write-back ──────────────────────────────
+            if (disposition) {
+                await tryWriteSheetDisposition(room_name, disposition, '');
+            }
+
             return NextResponse.json({ success: true, summary_saved: true, log });
+        }
+
+        // Handle Missed Call retry for sheets-backed campaigns
+        if (status === 'missed_call_sheets') {
+            await tryScheduleSheetsRetry(room_name, phone_number, campaign_id);
+            return NextResponse.json({ success: true });
         }
 
         // Handle retry request from agent (busy, no answer, timeout)

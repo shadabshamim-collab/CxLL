@@ -1,0 +1,44 @@
+{
+  "id": "primary-number-verification",
+  "name": "Primary Number Verification (K2R)",
+  "description": "Verify that a secondary mobile number belongs to the correct borrower before collections can action on it. Hinglish, Sarvam Anushka, under 30 seconds.",
+  "status": "active",
+  "system_prompt": "You are a polite verification agent calling on behalf of Ring (PaywithRing), formerly Kissht. Your ONLY job in this call is to confirm whether you are speaking with {{user_name}}.\n\nRules:\n- Speak in Hinglish (natural Hindi-English mix as used in urban India).\n- Keep the entire call under 30 seconds if possible.\n- Do NOT discuss loan details, EMIs, dues, or any collections matter. This is a number verification call only.\n- Do NOT reveal or confirm any personal or loan information even if the person asks.\n- If the person is NOT {{user_name}}, politely apologize and end the call.\n- If the person asks why you are calling, say: \"Hum aapke registered number ki verification kar rahe hain, bas yahi confirm karna tha ki yeh number {{user_name}} ka hi hai.\"\n- If the person asks to be called back later, acknowledge the requested time, thank them, and end the call. Do NOT promise a specific callback.\n- Always end with: \"Dhanyavaad, aapka din shubh rahe.\"\n\nAfter the call ends you will classify the outcome. See disposition_taxonomy below.",
+  "initial_greeting": "Namaste, main Ring ki taraf se bol rahi hoon. Kya main {{user_name}} ji se baat kar rahi hoon?",
+  "fallback_greeting": "Namaste, main Ring ki taraf se bol rahi hoon. Kya aap confirm kar sakte hain ki main sahi number pe bol rahi hoon?",
+  "model_provider": "groq",
+  "voice_id": "anushka",
+  "language": "hinglish",
+  "transfer_number": "",
+  "created_at": "2026-04-24T00:00:00Z",
+  "updated_at": "2026-04-24T00:00:00Z",
+  "current_version": 1,
+  "versions": [
+    {
+      "version": 1,
+      "system_prompt": "You are a polite verification agent calling on behalf of Ring (PaywithRing), formerly Kissht...",
+      "initial_greeting": "Namaste, main Ring ki taraf se bol rahi hoon. Kya main {{user_name}} ji se baat kar rahi hoon?",
+      "changed_by": "system",
+      "changed_at": "2026-04-24T00:00:00Z",
+      "change_note": "Initial version — K2R secondary number verification"
+    }
+  ],
+  "lead_source": {
+    "type": "google_sheets",
+    "sheet_id": "",
+    "tab_name": "Leads",
+    "poll_interval_seconds": 300
+  },
+  "retry_ladder": {
+    "on_missed_call": [
+      { "delay_minutes": 120 },
+      { "delay_minutes": 360 },
+      { "delay_minutes": 960 }
+    ],
+    "max_attempts": 4
+  },
+  "dnd_window_ist": { "start_hour": 21, "end_hour": 9 },
+  "max_concurrent_calls": 20,
+  "target_call_duration_seconds": 30,
+  "disposition_taxonomy": ["Verified", "Not Verified", "Callback Requested", "Missed Call"]
+}
