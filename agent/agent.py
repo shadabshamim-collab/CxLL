@@ -369,14 +369,11 @@ async def entrypoint(ctx: agents.JobContext):
         asyncio.ensure_future(_notify_dashboard(ctx.room.name, "completed", duration_seconds=duration))
         asyncio.ensure_future(_post_call_summary(session, ctx.room.name, duration, campaign_id))
 
-    from livekit.agents import RoomOptions
     await session.start(
         room=ctx.room,
         agent=OutboundAssistant(tools=list(fnc_ctx.function_tools.values()), instructions=system_prompt),
-        room_options=RoomOptions(
-            input_options=RoomInputOptions(
-                noise_cancellation=noise_cancellation.BVCTelephony(),
-            ),
+        room_input_options=RoomInputOptions(
+            noise_cancellation=noise_cancellation.BVCTelephony(),
         ),
     )
 
