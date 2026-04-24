@@ -211,8 +211,17 @@ export async function writeDispositionSentinel(
 }
 
 // ── Final disposition write (after call completes) ───────────────────────────
-// Overwrites "Dialing…" in Col D. Updates F (timestamp), G (Call SID), H (notes).
+// Overwrites "Dialing…" in Col D. Updates F–K with call details.
+// Column map: D=Disposition, E=Attempt Count, F=Timestamp, G=Call SID,
+//             H=Notes/Transcript, I=Sentiment, J=Duration (s), K=Turn Count
 // Never touches Col A, B, or C.
+
+export interface CallDetails {
+    notes?: string;       // Col H — transcript preview (first 500 chars)
+    sentiment?: string;   // Col I — positive / neutral / negative / frustrated
+    durationSeconds?: number; // Col J
+    turnCount?: number;   // Col K
+}
 
 export async function writeDisposition(
     sheetId: string,
@@ -220,16 +229,22 @@ export async function writeDisposition(
     rowIndex: number,
     disposition: VerificationDisposition,
     callSid: string,
-    notes = ''
+    notesOrDetails: string | CallDetails = ''
 ): Promise<void> {
+    const details: CallDetails = typeof notesOrDetails === 'string'
+        ? { notes: notesOrDetails }
+        : notesOrDetails;
+
     const updates: Array<{ range: string; values: any[][] }> = [
         { range: `${tabName}!D${rowIndex}`, values: [[disposition]] },
         { range: `${tabName}!F${rowIndex}`, values: [[nowIST()]] },
         { range: `${tabName}!G${rowIndex}`, values: [[callSid]] },
     ];
-    if (notes) {
-        updates.push({ range: `${tabName}!H${rowIndex}`, values: [[notes]] });
-    }
+    if (details.notes)            updates.push({ range: `${tabName}!H${rowIndex}`, values: [[details.notes]] });
+    if (details.sentiment)        updates.push({ range: `${tabName}!I${rowIndex}`, values: [[details.sentiment]] });
+    if (details.durationSeconds != null) updates.push({ range: `${tabName}!J${rowIndex}`, values: [[details.durationSeconds]] });
+    if (details.turnCount != null)       updates.push({ range: `${tabName}!K${rowIndex}`, values: [[details.turnCount]] });
+
     await sheetsFetch(`/${sheetId}/values:batchUpdate`, {
         method: 'POST',
         body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: updates }),
