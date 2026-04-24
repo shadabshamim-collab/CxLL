@@ -10,6 +10,22 @@ export interface CampaignVersion {
     change_note: string;
 }
 
+export interface CampaignLeadSource {
+    type: 'google_sheets' | 'csv' | 'api';
+    sheet_id?: string;
+    tab_name?: string;
+    poll_interval_seconds?: number;
+}
+
+export interface RetryLadderStep {
+    delay_minutes: number;
+}
+
+export interface CampaignRetryLadder {
+    on_missed_call: RetryLadderStep[];
+    max_attempts: number;
+}
+
 export interface Campaign {
     id: string;
     name: string;
@@ -26,6 +42,12 @@ export interface Campaign {
     updated_at: string;
     current_version: number;
     versions: CampaignVersion[];
+    // Optional — only present on campaigns using Google Sheets as lead source
+    lead_source?: CampaignLeadSource;
+    retry_ladder?: CampaignRetryLadder;
+    dnd_window_ist?: { start_hour: number; end_hour: number };
+    max_concurrent_calls?: number;
+    disposition_taxonomy?: string[];
 }
 
 const CAMPAIGNS_DIR = path.join(process.cwd(), '..', 'agent', 'campaigns');

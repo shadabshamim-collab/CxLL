@@ -19,7 +19,12 @@ async function tryEnqueue(data: any): Promise<{ jobId: string } | null> {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { phoneNumber, prompt, modelProvider, voice, campaignId, scheduledAt } = body;
+        const {
+            phoneNumber, prompt, modelProvider, voice, campaignId, scheduledAt,
+            sheets_meta,          // optional: SheetsMeta from sheets-sync cron
+            overrideSystemPrompt, // optional: {{user_name}}-substituted prompt
+            overrideGreeting,     // optional: {{user_name}}-substituted greeting
+        } = body;
 
         if (!phoneNumber) {
             return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
@@ -48,11 +53,14 @@ export async function POST(request: Request) {
                 ...metadata,
                 campaign_id: campaign.id,
                 campaign_name: campaign.name,
-                system_prompt: campaign.system_prompt,
-                initial_greeting: campaign.initial_greeting,
+                // Allow cron to pass {{user_name}}-substituted overrides
+                system_prompt: overrideSystemPrompt || campaign.system_prompt,
+                initial_greeting: overrideGreeting || campaign.initial_greeting,
                 fallback_greeting: campaign.fallback_greeting,
                 model_provider: modelProvider || campaign.model_provider,
                 voice_id: voice || campaign.voice_id,
+                // Pass user_name so agent can reference it in post-call analysis
+                ...(sheets_meta?.user_name ? { user_name: sheets_meta.user_name } : {}),
             };
         } else {
             metadata = {
@@ -104,6 +112,14 @@ export async function POST(request: Request) {
             model_provider: metadata.model_provider || 'groq',
             voice_id: metadata.voice_id || 'aura-asteria-en',
         });
+
+        // Store sheets_meta in Redis so the webhook can write the disposition back.
+        if (sheets_meta) {
+            try {
+                const { storeSheetsMeta } = await import('@/lib/google-sheets');
+                await storeSheetsMeta(roomName, sheets_meta);
+            } catch { /* Redis unavailable — sheets disposition write will be skipped */ }
+        }
 
         return NextResponse.json({
             success: true,

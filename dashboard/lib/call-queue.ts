@@ -21,6 +21,15 @@ export interface CallJobData {
     voice_id: string;
     retry_count?: number;
     scheduled_at?: string;
+    // Optional: set for Google Sheets-backed campaigns; worker stores the Redis key
+    sheets_meta?: {
+        urn: string;
+        user_name: string;
+        sheet_id: string;
+        tab_name: string;
+        row_index: number;
+        attempt_count: number;
+    };
 }
 
 function getISTHour(): number {
@@ -164,6 +173,15 @@ export function startCallWorker(): Worker {
                         voice_id: data.voice_id,
                         retry_count: data.retry_count || 0,
                     } as any).catch(err => console.error('[Worker] Airtable log failed:', err.message));
+                }
+
+                // For sheets-backed campaigns, store the Redis key so the webhook can
+                // write the final disposition back to the sheet row.
+                if (data.sheets_meta) {
+                    try {
+                        const { storeSheetsMeta } = await import('./google-sheets');
+                        await storeSheetsMeta(data.room_name, data.sheets_meta);
+                    } catch { /* non-fatal */ }
                 }
 
                 console.log(`[Worker] Dispatched ${data.call_id} → room ${data.room_name}`);
