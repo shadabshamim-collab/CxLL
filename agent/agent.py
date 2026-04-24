@@ -286,16 +286,23 @@ class OutboundAssistant(Agent):
 
 
 async def _safe_generate_reply(session: AgentSession, instructions: str, retries: int = 2):
-    """Generate reply with retry on failure."""
+    """Generate reply with retry on failure. Falls back to static TTS greeting if LLM is down."""
     for attempt in range(retries):
         try:
             await session.generate_reply(instructions=instructions)
-            return
+            return True
         except Exception as e:
             logger.error(f"generate_reply attempt {attempt + 1} failed: {e}")
             if attempt < retries - 1:
-                await asyncio.sleep(0.5)
-    logger.error("All generate_reply attempts failed")
+                await asyncio.sleep(1.0)
+
+    logger.error("All generate_reply attempts failed — speaking static fallback greeting via TTS")
+    try:
+        fallback_text = "Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Abhi hamare system mein thodi technical difficulty aa rahi hai. Kya main aapko thodi der mein dobara call kar sakti hoon?"
+        await session.say(fallback_text)
+    except Exception as e:
+        logger.error(f"Even TTS fallback failed: {e}")
+    return False
 
 
 async def entrypoint(ctx: agents.JobContext):
@@ -353,20 +360,23 @@ async def entrypoint(ctx: agents.JobContext):
         tts=_build_tts(config_dict.get("model_provider"), config_dict.get("voice_id")),
     )
 
-    call_start_time = time.time()
+    call_start_time = None
     campaign_id = config_dict.get("campaign_id")
 
     @ctx.room.on("disconnected")
     def _on_disconnect():
-        duration = int(time.time() - call_start_time)
+        duration = int(time.time() - call_start_time) if call_start_time else 0
         asyncio.ensure_future(_notify_dashboard(ctx.room.name, "completed", duration_seconds=duration))
         asyncio.ensure_future(_post_call_summary(session, ctx.room.name, duration, campaign_id))
 
+    from livekit.agents import RoomOptions
     await session.start(
         room=ctx.room,
         agent=OutboundAssistant(tools=list(fnc_ctx.function_tools.values()), instructions=system_prompt),
-        room_input_options=RoomInputOptions(
-            noise_cancellation=noise_cancellation.BVCTelephony(),
+        room_options=RoomOptions(
+            input_options=RoomInputOptions(
+                noise_cancellation=noise_cancellation.BVCTelephony(),
+            ),
         ),
     )
 
@@ -398,7 +408,8 @@ async def entrypoint(ctx: agents.JobContext):
                 )
             )
             logger.info("Call answered! Agent is now listening.")
-            call_start_time = time.time()
+            if call_start_time is None:
+                call_start_time = time.time()
             await _notify_dashboard(ctx.room.name, "connected")
 
             # Brief pause for audio pipeline to stabilize

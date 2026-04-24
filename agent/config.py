@@ -99,12 +99,9 @@ INITIAL_GREETING = """The user has picked up the call. Greet them in Hinglish ex
 "Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Aapke loan account ke baare mein ek quick baat karni thi — kya abhi thoda time hai?"
 Wait for their response before continuing. If they respond in English, switch to English from your next turn."""
 
-fallback_greeting = """Greet the user in Hinglish:
-
-# ---- ALTERNATE PROMPTS (uncomment to use) ----
-
-
-# SYSTEM_PROMPT = """
+fallback_greeting = """Greet the user in Hinglish immediately. Say:
+"Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Aapke loan account ke baare mein baat karni thi — kya abhi thoda time hai?"
+Wait for their response before continuing."""
 
 
 
