@@ -3,8 +3,16 @@
  * Run: npx tsx scripts/setup-sheet.ts
  * Requires GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON in dashboard/.env
  */
-import 'dotenv/config';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { JWT } from 'google-auth-library';
+
+// Load .env manually (no dotenv dependency)
+const envPath = resolve(__dirname, '../.env');
+for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+    const m = line.match(/^([^#=]+)=(.*)$/);
+    if (m) process.env[m[1].trim()] ??= m[2].trim();
+}
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_DEFAULT_SHEET_ID || '108ksoVbG9vvTJ00wLLXEN29G7SMz5RwKxvl9FQKiigQ';
 const TAB_NAME = 'Leads';
