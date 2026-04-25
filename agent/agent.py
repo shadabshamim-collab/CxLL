@@ -209,6 +209,34 @@ async def _analyze_verification_call(transcript: str, user_name: str) -> dict:
     return {"disposition": "Not Verified", "outcome": "not_verified", "sentiment": "neutral"}
 
 
+def _get_history_items(session: AgentSession) -> list:
+    """Get chat history items across different LiveKit SDK versions."""
+    history = getattr(session, 'history', None)
+    if history is None:
+        return []
+    # SDK may expose history as a callable method rather than a property
+    if callable(history):
+        try:
+            history = history()
+        except Exception:
+            return []
+    # Try .messages first, then .items — both may be list or callable
+    for attr in ('messages', 'items'):
+        val = getattr(history, attr, None)
+        if val is None:
+            continue
+        if callable(val):
+            try:
+                val = val()
+            except Exception:
+                continue
+        try:
+            return list(val)
+        except Exception:
+            continue
+    return []
+
+
 async def _post_call_summary(
     session: AgentSession,
     room_name: str,
@@ -222,10 +250,7 @@ async def _post_call_summary(
     try:
         transcript_lines = []
         try:
-            # session.history is the correct attribute (session.chat_ctx does not exist)
-            history = getattr(session, 'history', None)
-            if history:
-                for item in (getattr(history, 'messages', None) or getattr(history, 'items', [])):
+            for item in _get_history_items(session):
                     role = getattr(item, 'role', None)
                     content = getattr(item, 'content', None)
                     if not role or not content or role not in ('user', 'assistant'):
@@ -526,20 +551,18 @@ async def _push_transcript_update(room_name: str, session: AgentSession, campaig
     """Push live transcript update to dashboard (for real-time monitor)."""
     try:
         transcript_lines = []
-        history = getattr(session, 'history', None)
-        if history:
-            for item in (getattr(history, 'messages', None) or getattr(history, 'items', [])):
-                role = getattr(item, 'role', None)
-                content = getattr(item, 'content', None)
-                if not role or not content or role not in ('user', 'assistant'):
-                    continue
-                speaker = "Customer" if role == "user" else "Agent"
-                if isinstance(content, list):
-                    text = ' '.join(c for c in content if isinstance(c, str)).strip()
-                else:
-                    text = str(content).strip()
-                if text:
-                    transcript_lines.append(f"{speaker}: {text}")
+        for item in _get_history_items(session):
+            role = getattr(item, 'role', None)
+            content = getattr(item, 'content', None)
+            if not role or not content or role not in ('user', 'assistant'):
+                continue
+            speaker = "Customer" if role == "user" else "Agent"
+            if isinstance(content, list):
+                text = ' '.join(c for c in content if isinstance(c, str)).strip()
+            else:
+                text = str(content).strip()
+            if text:
+                transcript_lines.append(f"{speaker}: {text}")
 
         turn_count = len(transcript_lines) // 2 if transcript_lines else 0
         transcript_text = "\n".join(transcript_lines[-30:])
