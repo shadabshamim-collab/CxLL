@@ -9,7 +9,7 @@ interface ActiveCall {
     room_name: string;
     campaign_id?: string;
     campaign_name?: string;
-    phone_number: string;
+    phone_number?: string;
     model_provider?: string;
     voice_id?: string;
     turn_count?: number;
@@ -28,8 +28,8 @@ function formatDuration(ms: number): string {
     return `${Math.floor(secs / 60)}m ${secs % 60}s`;
 }
 
-function maskPhone(phone: string): string {
-    if (phone.length <= 6) return '******';
+function maskPhone(phone?: string): string {
+    if (!phone || phone.length <= 6) return '******';
     return phone.slice(0, phone.length - 6) + '******';
 }
 
@@ -50,36 +50,59 @@ export default function MonitorPage() {
             try {
                 const data = JSON.parse(event.data);
 
-                if (data.type === 'initial') {
-                    // Initial list of all calls
-                    const activeCalls = (data.logs || []).filter((log: any) =>
-                        log.status === 'connected' || log.status === 'ringing' || log.status === 'dialing'
-                    );
+                if (data.type === 'initial' || data.recent) {
+                    // Initial list of all calls or recent calls from stats
+                    const activeCalls = (data.logs || data.recent || [])
+                        .filter((log: any) => log.status === 'connected' || log.status === 'ringing' || log.status === 'dialing')
+                        .map((log: any) => ({
+                            id: log.room_name || log.id,
+                            room_name: log.room_name || log.id,
+                            campaign_id: log.campaign_id,
+                            campaign_name: log.campaign_name,
+                            phone_number: log.phone_number || '',
+                            model_provider: log.model_provider,
+                            voice_id: log.voice_id,
+                            turn_count: log.turn_count,
+                            avg_turn_latency_ms: log.avg_turn_latency_ms,
+                            transcript: log.transcript || '',
+                            connected_at: log.connected_at || new Date().toISOString(),
+                        }));
                     setCalls(activeCalls);
-                } else {
-                    // Update to an existing call or new call
+                } else if (data.type === 'transcript_update' && data.room_name) {
+                    // Update to an existing call
                     setCalls(prev => {
                         const idx = prev.findIndex(c => c.room_name === data.room_name);
-                        if (idx === -1 && data.type !== 'call_ended') {
-                            return [...prev, { id: data.room_name, ...data }];
-                        } else if (idx !== -1) {
-                            if (data.type === 'call_ended') {
-                                return prev.filter((_, i) => i !== idx);
-                            }
-                            const updated = [...prev];
-                            updated[idx] = { ...updated[idx], ...data };
-                            return updated;
+                        if (idx === -1) {
+                            return [...prev, {
+                                id: data.room_name,
+                                room_name: data.room_name,
+                                phone_number: '',
+                                turn_count: data.turn_count,
+                                transcript: data.transcript || '',
+                                connected_at: new Date().toISOString(),
+                            }];
                         }
-                        return prev;
+                        const updated = [...prev];
+                        updated[idx] = {
+                            ...updated[idx],
+                            turn_count: data.turn_count ?? updated[idx].turn_count,
+                            transcript: data.transcript ?? updated[idx].transcript,
+                        };
+                        return updated;
                     });
 
                     // Update selected call if it's the one being updated
                     if (selectedCall && selectedCall.room_name === data.room_name) {
-                        if (data.type === 'call_ended') {
-                            setSelectedCall(null);
-                        } else {
-                            setSelectedCall(prev => prev ? { ...prev, ...data } : null);
-                        }
+                        setSelectedCall(prev => prev ? {
+                            ...prev,
+                            turn_count: data.turn_count ?? prev.turn_count,
+                            transcript: data.transcript ?? prev.transcript,
+                        } : null);
+                    }
+                } else if (data.type === 'call_ended' && data.room_name) {
+                    setCalls(prev => prev.filter(c => c.room_name !== data.room_name));
+                    if (selectedCall && selectedCall.room_name === data.room_name) {
+                        setSelectedCall(null);
                     }
                 }
             } catch (e) {
@@ -187,7 +210,7 @@ export default function MonitorPage() {
                             <div className="bg-white/5 border border-white/10 rounded-xl h-[500px] flex flex-col">
                                 {/* Header */}
                                 <div className="border-b border-white/10 p-4">
-                                    <p className="text-sm font-semibold text-white">{maskPhone(selectedCall.phone_number)}</p>
+                                    <p className="text-sm font-semibold text-white">{selectedCall.phone_number ? maskPhone(selectedCall.phone_number) : selectedCall.room_name}</p>
                                     <p className="text-xs text-gray-400 mt-1">{selectedCall.campaign_name || 'Unknown campaign'}</p>
                                     <div className="flex gap-4 mt-3 text-xs text-gray-500">
                                         <span>Turns: {selectedCall.turn_count ?? 0}</span>
