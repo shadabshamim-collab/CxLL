@@ -282,8 +282,7 @@ export default function AnalyticsPage() {
                                     {filteredLogs.map((log) => (
                                         <tr
                                             key={log.id}
-                                            className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer"
-                                            onClick={() => setSelectedCall(log)}
+                                            className="border-b border-white/5 hover:bg-white/5 transition-colors"
                                         >
                                             <td className="px-4 py-3 font-mono text-white">{maskPhone(log.phone_number)}</td>
                                             <td className="px-4 py-3 text-gray-400 truncate max-w-[150px]">{log.campaign_name}</td>
@@ -295,15 +294,18 @@ export default function AnalyticsPage() {
                                             <td className="px-4 py-3 text-gray-300">{formatDuration(log.duration_seconds)}</td>
                                             <td className="px-4 py-3">
                                                 {log.outcome ? (
-                                                    <span className={`px-2 py-0.5 text-xs rounded-full border ${
-                                                        log.outcome === 'payment_committed' ? 'text-green-400 bg-green-500/10 border-green-500/20' :
-                                                        log.outcome === 'callback_scheduled' ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' :
-                                                        log.outcome === 'transferred' ? 'text-purple-400 bg-purple-500/10 border-purple-500/20' :
-                                                        log.outcome === 'refused' ? 'text-red-400 bg-red-500/10 border-red-500/20' :
-                                                        'text-gray-400 bg-white/5 border-white/10'
-                                                    }`}>
+                                                    <button
+                                                        onClick={() => setSelectedCall(log)}
+                                                        className={`px-2 py-0.5 text-xs rounded-full border cursor-pointer hover:opacity-80 transition-opacity ${
+                                                            log.outcome === 'payment_committed' ? 'text-green-400 bg-green-500/10 border-green-500/20' :
+                                                            log.outcome === 'callback_scheduled' ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' :
+                                                            log.outcome === 'transferred' ? 'text-purple-400 bg-purple-500/10 border-purple-500/20' :
+                                                            log.outcome === 'refused' ? 'text-red-400 bg-red-500/10 border-red-500/20' :
+                                                            'text-gray-400 bg-white/5 border-white/10'
+                                                        }`}
+                                                    >
                                                         {log.outcome.replace(/_/g, ' ')}
-                                                    </span>
+                                                    </button>
                                                 ) : <span className="text-gray-600">-</span>}
                                             </td>
                                             <td className="px-4 py-3">
