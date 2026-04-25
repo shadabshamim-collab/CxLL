@@ -168,6 +168,16 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'room_name is required' }, { status: 400 });
         }
 
+        // Handle live transcript updates from agent (for real-time monitor)
+        if (status === 'transcript_update') {
+            const updateData: Record<string, any> = {};
+            if (turn_count !== undefined) updateData.turn_count = turn_count;
+            if (transcript) updateData.transcript = transcript;
+            updateData.updated_at = new Date().toISOString();
+            await updateCallByRoom(room_name, updateData);
+            return NextResponse.json({ success: true });
+        }
+
         // Handle post-call summary from agent
         if (status === 'summary') {
             const summaryUpdate: Record<string, any> = {};

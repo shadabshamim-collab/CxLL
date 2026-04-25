@@ -40,6 +40,12 @@ function NavBar() {
             Campaigns
           </Link>
           <Link
+            href="/monitor"
+            className="px-4 py-2 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+          >
+            Monitor
+          </Link>
+          <Link
             href="/analytics"
             className="px-4 py-2 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
           >

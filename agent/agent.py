@@ -517,6 +517,38 @@ class OutboundAssistant(Agent):
         )
 
 
+async def _push_transcript_update(room_name: str, session: AgentSession, campaign_id: str = None):
+    """Push live transcript update to dashboard (for real-time monitor)."""
+    try:
+        transcript_lines = []
+        history = getattr(session, 'history', None)
+        if history:
+            for item in (getattr(history, 'messages', None) or getattr(history, 'items', [])):
+                role = getattr(item, 'role', None)
+                content = getattr(item, 'content', None)
+                if not role or not content or role not in ('user', 'assistant'):
+                    continue
+                speaker = "Customer" if role == "user" else "Agent"
+                if isinstance(content, list):
+                    text = ' '.join(c for c in content if isinstance(c, str)).strip()
+                else:
+                    text = str(content).strip()
+                if text:
+                    transcript_lines.append(f"{speaker}: {text}")
+
+        turn_count = len(transcript_lines) // 2 if transcript_lines else 0
+        transcript_text = "\n".join(transcript_lines[-30:])
+        await _notify_dashboard(
+            room_name,
+            "transcript_update",
+            turn_count=turn_count,
+            transcript=transcript_text,
+            campaign_id=campaign_id,
+        )
+    except Exception as e:
+        logger.debug(f"Transcript update failed: {e}")
+
+
 async def _safe_generate_reply(session: AgentSession, instructions: str, retries: int = 2):
     """Generate reply with retry on failure. Falls back to static TTS greeting if LLM is down."""
     for attempt in range(retries):
@@ -615,12 +647,25 @@ async def entrypoint(ctx: agents.JobContext):
 
     @ctx.room.on("disconnected")
     def _on_disconnect():
+        transcript_update_stop.set()
         duration = int(time.time() - call_start_time) if call_start_time else 0
         extra = {"duration_seconds": duration}
         if sheets_meta_raw:
             extra["sheets_meta"] = sheets_meta_raw
         asyncio.ensure_future(_notify_dashboard(ctx.room.name, "completed", **extra))
         asyncio.ensure_future(_post_call_summary(session, ctx.room.name, duration, campaign_id, user_name, sheets_meta_raw))
+
+    # Background task to stream transcript updates every 2 seconds
+    transcript_update_stop = asyncio.Event()
+
+    async def _stream_transcript_updates():
+        while not transcript_update_stop.is_set():
+            await _push_transcript_update(ctx.room.name, session, campaign_id)
+            try:
+                await asyncio.wait_for(transcript_update_stop.wait(), timeout=2.0)
+                break
+            except asyncio.TimeoutError:
+                pass
 
     await session.start(
         room=ctx.room,
@@ -629,6 +674,9 @@ async def entrypoint(ctx: agents.JobContext):
             noise_cancellation=noise_cancellation.BVCTelephony(),
         ),
     )
+
+    # Start background transcript streaming
+    asyncio.create_task(_stream_transcript_updates())
 
     # ── Dial out or greet ──
     should_dial = False
