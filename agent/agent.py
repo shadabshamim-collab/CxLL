@@ -377,7 +377,8 @@ def _build_llm(config_provider: str = None):
             base_url="https://api.groq.com/openai/v1",
             api_key=os.getenv("GROQ_API_KEY"),
             model=os.getenv("GROQ_MODEL", config.GROQ_MODEL),
-            temperature=float(os.getenv("GROQ_TEMPERATURE", str(config.GROQ_TEMPERATURE))),
+            temperature=0.6,
+            max_completion_tokens=1200,
         )
 
     if provider == "groq-fast":
@@ -386,12 +387,13 @@ def _build_llm(config_provider: str = None):
             base_url="https://api.groq.com/openai/v1",
             api_key=os.getenv("GROQ_API_KEY"),
             model="llama-3.1-8b-instant",
-            temperature=0.2,
+            temperature=0.6,
+            max_completion_tokens=1200,
         )
 
     if provider == "openai-mini":
         logger.info("Using OpenAI LLM (gpt-4o-mini)")
-        return openai.LLM(model="gpt-4o-mini")
+        return openai.LLM(model="gpt-4o-mini", temperature=0.6, max_completion_tokens=1200)
 
     if provider in ("gemini", "google"):
         api_key = os.getenv("GOOGLE_API_KEY")
@@ -401,22 +403,21 @@ def _build_llm(config_provider: str = None):
                 base_url="https://api.groq.com/openai/v1",
                 api_key=os.getenv("GROQ_API_KEY"),
                 model=config.GROQ_MODEL,
-                temperature=config.GROQ_TEMPERATURE,
+                temperature=0.6,
+                max_completion_tokens=1200,
             )
         model = os.getenv("GEMINI_MODEL", config.GEMINI_MODEL)
         logger.info(f"Using Google Gemini (model: {model})")
-        # Use native google plugin (not OpenAI-compat) — avoids "contents not specified" warmup error.
-        # Disable thinking on 2.5 family for low-latency voice (saves 100+ tokens of internal reasoning).
         from google.genai.types import ThinkingConfig
         return google_plugin.LLM(
             model=model,
             api_key=api_key,
-            temperature=0.3,
+            temperature=0.6,
             thinking_config=ThinkingConfig(thinking_budget=0),
         )
 
     logger.info("Using OpenAI LLM (gpt-4o)")
-    return openai.LLM(model=config.DEFAULT_LLM_MODEL)
+    return openai.LLM(model=config.DEFAULT_LLM_MODEL, temperature=0.6, max_completion_tokens=1200)
 
 
 

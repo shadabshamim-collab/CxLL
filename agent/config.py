@@ -152,7 +152,7 @@ DEFAULT_LLM_MODEL = "gpt-4o-mini" # OpenAI default
 
 # Groq Specifics (Faster inference)
 GROQ_MODEL = "llama-3.3-70b-versatile"
-GROQ_TEMPERATURE = 0.3
+GROQ_TEMPERATURE = 0.6
 
 # Google Gemini via AI Studio (OpenAI-compatible endpoint)
 # NOTE: 2.0 family has quota=0 on most free keys.
