@@ -240,9 +240,13 @@ async def _post_call_summary(
         except Exception as e:
             logger.warning(f"Could not extract transcript from session.history: {e}")
 
+        turn_count = len(transcript_lines) // 2 if transcript_lines else 0  # Divide by 2: agent + customer pairs
+        avg_turn_latency_ms = int((duration * 1000 / turn_count)) if turn_count > 0 else 0
+
         summary = {
             "duration_seconds": duration,
-            "turn_count": len(transcript_lines),
+            "turn_count": turn_count,
+            "avg_turn_latency_ms": avg_turn_latency_ms,
             "campaign_id": campaign_id,
         }
 
@@ -374,6 +378,7 @@ def _build_llm(config_provider: str = None):
             api_key=os.getenv("GROQ_API_KEY"),
             model=os.getenv("GROQ_MODEL", config.GROQ_MODEL),
             temperature=float(os.getenv("GROQ_TEMPERATURE", str(config.GROQ_TEMPERATURE))),
+            max_tokens=120,
         )
 
     if provider == "groq-fast":
@@ -383,11 +388,12 @@ def _build_llm(config_provider: str = None):
             api_key=os.getenv("GROQ_API_KEY"),
             model="llama-3.1-8b-instant",
             temperature=0.2,
+            max_tokens=120,
         )
 
     if provider == "openai-mini":
         logger.info("Using OpenAI LLM (gpt-4o-mini)")
-        return openai.LLM(model="gpt-4o-mini")
+        return openai.LLM(model="gpt-4o-mini", max_tokens=120)
 
     if provider in ("gemini", "google"):
         api_key = os.getenv("GOOGLE_API_KEY")
@@ -398,6 +404,7 @@ def _build_llm(config_provider: str = None):
                 api_key=os.getenv("GROQ_API_KEY"),
                 model=config.GROQ_MODEL,
                 temperature=config.GROQ_TEMPERATURE,
+                max_tokens=120,
             )
         model = os.getenv("GEMINI_MODEL", config.GEMINI_MODEL)
         logger.info(f"Using Google Gemini (model: {model})")
@@ -412,7 +419,7 @@ def _build_llm(config_provider: str = None):
         )
 
     logger.info("Using OpenAI LLM (gpt-4o)")
-    return openai.LLM(model=config.DEFAULT_LLM_MODEL)
+    return openai.LLM(model=config.DEFAULT_LLM_MODEL, max_tokens=120)
 
 
 
@@ -583,12 +590,13 @@ async def entrypoint(ctx: agents.JobContext):
         logger.info("Using default prompt from config.py")
 
     # ── Tuned VAD for Indian telecom networks ──
-    # min_silence_duration=0.4s: faster turn-taking (was 0.8s — caused 800ms delay before agent replied).
+    # min_silence_duration: can be overridden per-campaign (default 0.4s for fast turn-taking).
     # Set higher (0.6-0.8) only if customers are getting cut off mid-pause.
+    min_silence_dur = float(config_dict.get("vad_min_silence_duration", 0.4))
     session = AgentSession(
         vad=silero.VAD.load(
             min_speech_duration=0.05,
-            min_silence_duration=0.4,
+            min_silence_duration=min_silence_dur,
             activation_threshold=0.5,
             prefix_padding_duration=0.2,
         ),

@@ -122,8 +122,8 @@ STT_LANGUAGE = "en"   # "en" supports multi-language code switching in Nova 2
 
 # --- 3. TEXT-TO-SPEECH (TTS) SETTINGS ---
 # Choose your voice provider: "openai", "sarvam" (Indian voices), "cartesia" (Ultra-fast), or "elevenlabs"
-DEFAULT_TTS_PROVIDER = "openai"
-DEFAULT_TTS_VOICE = "alloy"      # OpenAI: alloy, echo, shimmer | Sarvam: anushka, manisha, vidya, arya, abhilash, karun, hitesh
+DEFAULT_TTS_PROVIDER = "elevenlabs"
+DEFAULT_TTS_VOICE = "jUjRbhZWoMK4aDciW36V"      # ElevenLabs: Anika (Hindi) by default | Override via campaign voice_id
 
 # Sarvam AI Specifics (for Indian Context)
 SARVAM_MODEL = "bulbul:v2"

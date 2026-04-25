@@ -18,6 +18,8 @@ interface CallLog {
     disposition: string | null;
     sentiment: string | null;
     turn_count: number | null;
+    avg_turn_latency_ms: number | null;
+    transcript: string | null;
     model_provider: string;
     voice_id: string;
     error: string | null;
@@ -81,6 +83,7 @@ export default function AnalyticsPage() {
     const [filterStatus, setFilterStatus] = useState('');
     const [searchPhone, setSearchPhone] = useState('');
     const [autoRefresh, setAutoRefresh] = useState(false);
+    const [selectedCall, setSelectedCall] = useState<CallLog | null>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -255,13 +258,18 @@ export default function AnalyticsPage() {
                                         <th className="px-4 py-3 font-medium">Outcome</th>
                                         <th className="px-4 py-3 font-medium">Sentiment</th>
                                         <th className="px-4 py-3 font-medium">Turns</th>
+                                        <th className="px-4 py-3 font-medium">Avg Latency</th>
                                         <th className="px-4 py-3 font-medium">Time</th>
                                         <th className="px-4 py-3 font-medium">Error</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {filteredLogs.map((log) => (
-                                        <tr key={log.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                        <tr
+                                            key={log.id}
+                                            className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer"
+                                            onClick={() => setSelectedCall(log)}
+                                        >
                                             <td className="px-4 py-3 font-mono text-white">{maskPhone(log.phone_number)}</td>
                                             <td className="px-4 py-3 text-gray-400 truncate max-w-[150px]">{log.campaign_name}</td>
                                             <td className="px-4 py-3">
@@ -296,6 +304,7 @@ export default function AnalyticsPage() {
                                                 ) : <span className="text-gray-600">-</span>}
                                             </td>
                                             <td className="px-4 py-3 text-gray-500">{log.turn_count ?? '-'}</td>
+                                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{log.avg_turn_latency_ms ? `${log.avg_turn_latency_ms}ms` : '-'}</td>
                                             <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatTime(log.dispatched_at)}</td>
                                             <td className="px-4 py-3 max-w-[250px]">
                                                 {log.error ? (
@@ -306,7 +315,7 @@ export default function AnalyticsPage() {
                                     ))}
                                     {filteredLogs.length === 0 && (
                                         <tr>
-                                            <td colSpan={9} className="px-4 py-8 text-center text-gray-600">
+                                            <td colSpan={10} className="px-4 py-8 text-center text-gray-600">
                                                 {searchPhone ? 'No calls match your search.' : 'No calls logged yet. Dispatch a call to see data here.'}
                                             </td>
                                         </tr>
@@ -316,6 +325,63 @@ export default function AnalyticsPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Transcript Modal */}
+                {selectedCall && (
+                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setSelectedCall(null)}>
+                        <div
+                            className="bg-[#1a1a1a] border border-white/20 rounded-xl max-w-2xl max-h-[80vh] overflow-auto w-full"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="sticky top-0 bg-[#1a1a1a] border-b border-white/10 p-6 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-xl font-bold text-white">Call Transcript</h3>
+                                    <p className="text-sm text-gray-400 mt-1">{maskPhone(selectedCall.phone_number)} • {selectedCall.campaign_name}</p>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedCall(null)}
+                                    className="text-gray-400 hover:text-white text-2xl"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-4">
+                                {selectedCall.transcript ? (
+                                    <div className="space-y-3">
+                                        {selectedCall.transcript.split('\n').map((line, i) => {
+                                            const isAgent = line.startsWith('Agent:');
+                                            return (
+                                                <div key={i} className={`text-sm ${isAgent ? 'text-blue-300' : 'text-green-300'}`}>
+                                                    <span className="font-semibold">{isAgent ? '🤖' : '👤'}</span> {line}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-400 text-center py-8">No transcript available for this call.</p>
+                                )}
+                                <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-white/10 text-sm">
+                                    <div>
+                                        <p className="text-gray-500">Duration</p>
+                                        <p className="text-white font-semibold">{formatDuration(selectedCall.duration_seconds)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-500">Turns</p>
+                                        <p className="text-white font-semibold">{selectedCall.turn_count ?? '-'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-500">Avg Latency</p>
+                                        <p className="text-white font-semibold">{selectedCall.avg_turn_latency_ms ? `${selectedCall.avg_turn_latency_ms}ms` : '-'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-500">Outcome</p>
+                                        <p className="text-white font-semibold capitalize">{selectedCall.outcome?.replace(/_/g, ' ') ?? '-'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </main>
     );
