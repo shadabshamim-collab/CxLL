@@ -378,7 +378,6 @@ def _build_llm(config_provider: str = None):
             api_key=os.getenv("GROQ_API_KEY"),
             model=os.getenv("GROQ_MODEL", config.GROQ_MODEL),
             temperature=float(os.getenv("GROQ_TEMPERATURE", str(config.GROQ_TEMPERATURE))),
-            max_tokens=120,
         )
 
     if provider == "groq-fast":
@@ -388,12 +387,11 @@ def _build_llm(config_provider: str = None):
             api_key=os.getenv("GROQ_API_KEY"),
             model="llama-3.1-8b-instant",
             temperature=0.2,
-            max_tokens=120,
         )
 
     if provider == "openai-mini":
         logger.info("Using OpenAI LLM (gpt-4o-mini)")
-        return openai.LLM(model="gpt-4o-mini", max_tokens=120)
+        return openai.LLM(model="gpt-4o-mini")
 
     if provider in ("gemini", "google"):
         api_key = os.getenv("GOOGLE_API_KEY")
@@ -404,7 +402,6 @@ def _build_llm(config_provider: str = None):
                 api_key=os.getenv("GROQ_API_KEY"),
                 model=config.GROQ_MODEL,
                 temperature=config.GROQ_TEMPERATURE,
-                max_tokens=120,
             )
         model = os.getenv("GEMINI_MODEL", config.GEMINI_MODEL)
         logger.info(f"Using Google Gemini (model: {model})")
@@ -419,7 +416,7 @@ def _build_llm(config_provider: str = None):
         )
 
     logger.info("Using OpenAI LLM (gpt-4o)")
-    return openai.LLM(model=config.DEFAULT_LLM_MODEL, max_tokens=120)
+    return openai.LLM(model=config.DEFAULT_LLM_MODEL)
 
 
 
