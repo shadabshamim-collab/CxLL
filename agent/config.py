@@ -103,13 +103,13 @@ English: "Just to confirm Sir — [agreed action]. You'll receive a confirmation
   "Main baad mein dobara call karungi Sir. Aapka din achha rahe." / "I'll try reaching you at another time Sir. Have a good day."
 """
 
-INITIAL_GREETING = """The user has picked up the call. Greet them in Hinglish exactly like this:
-"Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Aapke loan account ke baare mein ek quick baat karni thi — kya abhi thoda time hai?"
-Wait for their response before continuing. If they respond in English, switch to English from your next turn."""
+INITIAL_GREETING = """Speak ONLY this sentence — nothing else, no additions, no commentary:
+Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Aapke loan account ke baare mein ek quick baat karni thi — kya abhi thoda time hai?
+After saying it, stop and wait silently for the customer to reply."""
 
-fallback_greeting = """Greet the user in Hinglish immediately. Say:
-"Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Aapke loan account ke baare mein baat karni thi — kya abhi thoda time hai?"
-Wait for their response before continuing."""
+fallback_greeting = """Speak ONLY this sentence — nothing else, no additions, no commentary:
+Hello, namaskar! Main Anushka bol rahi hoon XYZ Finance ki taraf se. Aapke loan account ke baare mein baat karni thi — kya abhi thoda time hai?
+After saying it, stop and wait silently for the customer to reply."""
 
 
 
