@@ -45,6 +45,32 @@ describe('normalizeIndianMobile', () => {
         expect(normalizeIndianMobile('abc')).toBeNull();
         expect(normalizeIndianMobile('')).toBeNull();
     });
+
+    // TC-025: 0-prefix 11-digit number (leading 0 before 10-digit mobile)
+    it('TC-025: handles 0XXXXXXXXXX 11-digit format (0-prefix mobile)', () => {
+        expect(normalizeIndianMobile('09876543210')).toBe('+919876543210');
+    });
+
+    // TC-026: 9-digit number — too short, must return null
+    it('TC-026: returns null for 9-digit number', () => {
+        expect(normalizeIndianMobile('987654321')).toBeNull();
+    });
+
+    // TC-027: 11-digit number not starting with 0 or 91 — invalid
+    it('TC-027: returns null for 11-digit number not starting with 0 or 91', () => {
+        expect(normalizeIndianMobile('98765432101')).toBeNull();
+    });
+
+    // TC-028: non-Indian E.164 numbers — must return null
+    it('TC-028: returns null for non-Indian E.164 numbers (US/UK)', () => {
+        expect(normalizeIndianMobile('+14155551234')).toBeNull();   // US
+        expect(normalizeIndianMobile('+447911123456')).toBeNull();  // UK
+    });
+
+    // TC-029: alphanumeric garbage — must return null
+    it('TC-029: returns null for alphanumeric input', () => {
+        expect(normalizeIndianMobile('abc1234567')).toBeNull();
+    });
 });
 
 // ── maskMobile ────────────────────────────────────────────────────────────────
@@ -231,6 +257,32 @@ describe('readSheetLeads', () => {
         expect(leads[0].rowIndex).toBe(2);
         expect(leads[1].rowIndex).toBe(3);
     });
+
+    // TC-014: row with empty user_name (Col B) is skipped with a console.warn
+    it('TC-014: skips row with empty user_name and logs warning containing "missing user name"', async () => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        mockSheetsFetch([
+            ['URN001', '',      '9876543210', '', '0'], // Col B empty → skipped
+            ['URN002', 'Frank', '9876543211', '', '0'], // valid
+        ]);
+        const leads = await readSheetLeads('sheet123', 'Leads');
+        expect(leads).toHaveLength(1);
+        expect(leads[0].urn).toBe('URN002');
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('missing user name'));
+    });
+
+    // TC-017: duplicate URN — only first row returned, error logged
+    it('TC-017: returns only first row for duplicate URNs and logs error containing "duplicate URN"', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        mockSheetsFetch([
+            ['URN-DUP', 'Alice', '9876543210', '', '0'], // first → included
+            ['URN-DUP', 'Bob',   '9876543211', '', '1'], // duplicate → skipped
+        ]);
+        const leads = await readSheetLeads('sheet123', 'Leads');
+        expect(leads).toHaveLength(1);
+        expect(leads[0].user_name).toBe('Alice');
+        expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('duplicate URN'));
+    });
 });
 
 describe('writeDispositionSentinel', () => {
@@ -299,5 +351,39 @@ describe('writeDisposition', () => {
         const body = JSON.parse(fetchMock.mock.lastCall![1].body);
         const hUpdate = body.data.find((d: any) => d.range === 'Leads!H3');
         expect(hUpdate).toBeUndefined();
+    });
+
+    // TC-063: passing { attemptCount: 2 } in details → Col E written with value 2
+    it('TC-063: writes attemptCount to Col E when provided in details object', async () => {
+        const fetchMock = mockSheetsFetchWrite();
+        await writeDisposition('sheet123', 'Leads', 4, 'Verified', 'room-attempt', { attemptCount: 2 });
+        const body = JSON.parse(fetchMock.mock.lastCall![1].body);
+        const eUpdate = body.data.find((d: any) => d.range === 'Leads!E4');
+        expect(eUpdate).toBeDefined();
+        expect(eUpdate.values[0][0]).toBe(2);
+    });
+
+    // TC-066: full details object → Cols H, I, J, K all written correctly
+    it('TC-066: writes summary/sentiment/durationSeconds/transcript to Cols H/I/J/K', async () => {
+        const fetchMock = mockSheetsFetchWrite();
+        await writeDisposition('sheet123', 'Leads', 5, 'Verified', 'room-full', {
+            summary: 'customer confirmed identity',
+            sentiment: 'positive',
+            durationSeconds: 28,
+            transcript: 'Agent: Hello\nCustomer: Yes I confirm',
+        });
+        const body = JSON.parse(fetchMock.mock.lastCall![1].body);
+
+        const hUpdate = body.data.find((d: any) => d.range === 'Leads!H5');
+        expect(hUpdate?.values[0][0]).toBe('customer confirmed identity');
+
+        const iUpdate = body.data.find((d: any) => d.range === 'Leads!I5');
+        expect(iUpdate?.values[0][0]).toBe('positive');
+
+        const jUpdate = body.data.find((d: any) => d.range === 'Leads!J5');
+        expect(jUpdate?.values[0][0]).toBe(28);
+
+        const kUpdate = body.data.find((d: any) => d.range === 'Leads!K5');
+        expect(kUpdate?.values[0][0]).toBe('Agent: Hello\nCustomer: Yes I confirm');
     });
 });

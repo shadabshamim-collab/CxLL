@@ -95,6 +95,10 @@ export function normalizeIndianMobile(raw: string): string | null {
     if (digits.length === 10 && /^[6-9]/.test(digits)) {
         return `+91${digits}`;
     }
+    // 0XXXXXXXXXX — leading 0 before 10-digit mobile (common landline-dial format)
+    if (digits.length === 11 && digits.startsWith('0') && /^[6-9]/.test(digits[1])) {
+        return `+91${digits.slice(1)}`;
+    }
     if (digits.length === 12 && digits.startsWith('91') && /^[6-9]/.test(digits[2])) {
         return `+${digits}`;
     }
@@ -168,6 +172,7 @@ export async function readSheetLeads(sheetId: string, tabName: string): Promise<
     const data = await sheetsFetch(`/${sheetId}/values/${encodeURIComponent(range)}`);
     const rows: string[][] = data.values || [];
     const leads: SheetLead[] = [];
+    const seenUrns = new Set<string>();
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -179,6 +184,17 @@ export async function readSheetLeads(sheetId: string, tabName: string): Promise<
         if (!urn || !rawMobile) continue;
         // Non-empty Col D means dialing-in-progress, already completed, or skipped.
         if (disposition !== '') continue;
+
+        if (!user_name) {
+            console.warn(`[Sheets] Row ${i + 2} (URN ${urn}): skipping — missing user name`);
+            continue;
+        }
+
+        if (seenUrns.has(urn)) {
+            console.error(`[Sheets] Row ${i + 2}: duplicate URN ${urn} — skipping (lower row index wins)`);
+            continue;
+        }
+        seenUrns.add(urn);
 
         const normalized = normalizeIndianMobile(rawMobile);
         if (!normalized) {
@@ -219,14 +235,16 @@ export async function writeDispositionSentinel(
 // ── Final disposition write (after call completes) ───────────────────────────
 // Overwrites "Dialing…" in Col D. Updates F–K with call details.
 // Column map: D=Disposition, E=Attempt Count, F=Timestamp, G=Call SID,
-//             H=Notes/Transcript, I=Sentiment, J=Duration (s), K=Turn Count
+//             H=Summary, I=Sentiment, J=Duration (s), K=Transcript
 // Never touches Col A, B, or C.
 
 export interface CallDetails {
-    notes?: string;       // Col H — transcript preview (first 500 chars)
-    sentiment?: string;   // Col I — positive / neutral / negative / frustrated
-    durationSeconds?: number; // Col J
-    turnCount?: number;   // Col K
+    summary?: string;          // Col H — Groq-generated call summary (1-2 sentences)
+    notes?: string;            // Col H fallback — used for SIP error notes when no Groq summary
+    sentiment?: string;        // Col I — positive / neutral / negative / frustrated
+    durationSeconds?: number;  // Col J
+    transcript?: string;       // Col K — full call transcript text
+    attemptCount?: number;     // Col E — written on completion so it's always accurate
 }
 
 export async function writeDisposition(
@@ -246,10 +264,12 @@ export async function writeDisposition(
         { range: `${tabName}!F${rowIndex}`, values: [[nowIST()]] },
         { range: `${tabName}!G${rowIndex}`, values: [[callSid]] },
     ];
-    if (details.notes)            updates.push({ range: `${tabName}!H${rowIndex}`, values: [[details.notes]] });
+    if (details.attemptCount != null) updates.push({ range: `${tabName}!E${rowIndex}`, values: [[details.attemptCount]] });
+    const summaryText = details.summary || details.notes || '';
+    if (summaryText) updates.push({ range: `${tabName}!H${rowIndex}`, values: [[summaryText]] });
     if (details.sentiment)        updates.push({ range: `${tabName}!I${rowIndex}`, values: [[details.sentiment]] });
     if (details.durationSeconds != null) updates.push({ range: `${tabName}!J${rowIndex}`, values: [[details.durationSeconds]] });
-    if (details.turnCount != null)       updates.push({ range: `${tabName}!K${rowIndex}`, values: [[details.turnCount]] });
+    if (details.transcript)       updates.push({ range: `${tabName}!K${rowIndex}`, values: [[details.transcript]] });
 
     await sheetsFetch(`/${sheetId}/values:batchUpdate`, {
         method: 'POST',

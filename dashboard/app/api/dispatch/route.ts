@@ -21,6 +21,8 @@ export async function POST(request: Request) {
         const body = await request.json();
         const {
             phoneNumber, prompt, modelProvider, voice, campaignId, scheduledAt,
+            ttsProvider,          // optional: explicit TTS provider override (elevenlabs, sarvam, deepgram, openai)
+            sttProvider,          // optional: explicit STT provider override (deepgram, elevenlabs)
             sheets_meta,          // optional: SheetsMeta from sheets-sync cron
             overrideSystemPrompt, // optional: {{user_name}}-substituted prompt
             overrideGreeting,     // optional: {{user_name}}-substituted greeting
@@ -49,6 +51,18 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'Campaign is inactive' }, { status: 400 });
             }
             campaignName = campaign.name;
+
+            // Warn loudly if a Google Sheets campaign is dispatched without sheets_meta —
+            // the call will go through but the sheet row will never be updated.
+            const leadSource = (campaign as any).lead_source;
+            if (leadSource?.type === 'google_sheets' && !sheets_meta) {
+                console.warn(
+                    `[Dispatch] WARNING: campaign "${campaign.id}" uses Google Sheets but sheets_meta` +
+                    ` is missing. Sheet row will NOT be updated after this call. Use the sheets-sync` +
+                    ` cron/UI to dispatch sheet-backed campaigns.`
+                );
+            }
+
             metadata = {
                 ...metadata,
                 campaign_id: campaign.id,
@@ -61,6 +75,9 @@ export async function POST(request: Request) {
                 voice_id: voice || campaign.voice_id,
                 // Pass user_name so agent can reference it in post-call analysis
                 ...(sheets_meta?.user_name ? { user_name: sheets_meta.user_name } : {}),
+                // Embed sheets_meta in LiveKit metadata so agent echoes it back in every
+                // webhook call — makes disposition write-back stateless (no Redis needed)
+                ...(sheets_meta ? { sheets_meta: JSON.stringify(sheets_meta) } : {}),
             };
         } else {
             metadata = {
@@ -68,7 +85,15 @@ export async function POST(request: Request) {
                 user_prompt: prompt || '',
                 model_provider: modelProvider || 'groq',
                 voice_id: voice || 'aura-asteria-en',
+                ...(ttsProvider ? { tts_provider: ttsProvider } : {}),
+                ...(sttProvider ? { stt_provider: sttProvider } : {}),
             };
+        }
+
+        // For campaign dispatches, allow per-call TTS/STT overrides from the UI
+        if (campaignId && (ttsProvider || sttProvider)) {
+            if (ttsProvider) metadata.tts_provider = ttsProvider;
+            if (sttProvider) metadata.stt_provider = sttProvider;
         }
 
         // Try BullMQ queue (requires Redis)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { Phone, MessageSquare, Loader2, Sparkles, Megaphone, Wifi, WifiOff, RefreshCw, Sheet, PhoneCall } from 'lucide-react';
+import { Phone, MessageSquare, Loader2, Sparkles, Megaphone, Wifi, WifiOff, RefreshCw, Sheet, PhoneCall, Mic, Volume2 } from 'lucide-react';
 
 interface Campaign {
     id: string;
@@ -26,6 +26,18 @@ interface AgentHealth {
     checks: Record<string, HealthCheck>;
 }
 
+function inferTtsProvider(voiceId: string): string {
+    if (!voiceId) return 'openai';
+    const sarvamVoices = ['anushka', 'manisha', 'vidya', 'arya', 'abhilash', 'karun', 'hitesh'];
+    if (sarvamVoices.includes(voiceId)) return 'sarvam';
+    if (voiceId.startsWith('aura-')) return 'deepgram';
+    // Google Cloud TTS voices: hi-IN-Wavenet-A, en-US-Neural2-F, etc.
+    if (/^[a-z]{2}-[A-Z]{2}-/.test(voiceId)) return 'google';
+    // ElevenLabs voice IDs are 20-char alphanumeric
+    if (voiceId.length === 20 && /^[a-zA-Z0-9]+$/.test(voiceId)) return 'elevenlabs';
+    return 'openai';
+}
+
 export default function CallDispatcher() {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [prompt, setPrompt] = useState('');
@@ -37,6 +49,9 @@ export default function CallDispatcher() {
     const [leadMode, setLeadMode] = useState<'manual' | 'sheets'>('manual');
     const [health, setHealth] = useState<AgentHealth | null>(null);
     const [healthLoading, setHealthLoading] = useState(true);
+    const [modelProvider, setModelProvider] = useState('groq');
+    const [voiceId, setVoiceId] = useState('anushka');
+    const [sttProvider, setSttProvider] = useState('deepgram');
 
     const checkHealth = useCallback(async () => {
         setHealthLoading(true);
@@ -70,6 +85,10 @@ export default function CallDispatcher() {
     const handleCampaignChange = (id: string) => {
         setSelectedCampaignId(id);
         const c = campaigns.find(x => x.id === id);
+        if (c) {
+            setModelProvider(c.model_provider || 'groq');
+            setVoiceId(c.voice_id || 'anushka');
+        }
         if (c?.lead_source?.type !== 'google_sheets') setLeadMode('manual');
         setSyncResult(null);
         setStatus('idle');
@@ -101,10 +120,6 @@ export default function CallDispatcher() {
         }
 
         // ── Manual mode ───────────────────────────────────────────────────
-        const form = e.target as HTMLFormElement;
-        const modelProvider = (form.elements.namedItem('modelProvider') as HTMLSelectElement).value;
-        const voice = (form.elements.namedItem('voice') as HTMLSelectElement).value;
-
         try {
             const res = await fetch('/api/dispatch', {
                 method: 'POST',
@@ -113,7 +128,9 @@ export default function CallDispatcher() {
                     phoneNumber,
                     prompt,
                     modelProvider,
-                    voice,
+                    voice: voiceId,
+                    ttsProvider: inferTtsProvider(voiceId),
+                    sttProvider,
                     campaignId: selectedCampaignId || undefined,
                 }),
             });
@@ -304,45 +321,111 @@ export default function CallDispatcher() {
                         </div>
                     )}
 
+                    {/* LLM + STT row */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-sm text-gray-400 font-medium">Model provider</label>
+                            <label className="text-sm text-gray-400 font-medium flex items-center gap-1.5">
+                                LLM
+                            </label>
                             <select
-                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500"
-                                name="modelProvider"
-                                value={selectedCampaign ? selectedCampaign.model_provider : undefined}
-                                defaultValue="groq"
+                                className="w-full px-3 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                value={modelProvider}
+                                onChange={(e) => setModelProvider(e.target.value)}
                             >
-                                <option value="groq">Groq (Llama 3.3 - Fast)</option>
+                                <option value="groq-fast">Groq Llama 3.1 8B ⚡ (lowest latency)</option>
+                                <option value="groq">Groq Llama 3.3 70B</option>
+                                <option value="gemini">Google Gemini 2.5 Flash</option>
                                 <option value="openai">OpenAI (GPT-4o)</option>
+                                <option value="openai-mini">OpenAI (GPT-4o mini)</option>
                             </select>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm text-gray-400 font-medium">Voice</label>
+                            <label className="text-sm text-gray-400 font-medium flex items-center gap-1.5">
+                                <Mic className="w-3.5 h-3.5" /> STT
+                            </label>
                             <select
-                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500"
-                                name="voice"
-                                value={selectedCampaign ? selectedCampaign.voice_id : undefined}
-                                defaultValue="aura-asteria-en"
+                                className="w-full px-3 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                value={sttProvider}
+                                onChange={(e) => setSttProvider(e.target.value)}
                             >
-                                <optgroup label="Deepgram (Fastest)">
-                                    <option value="aura-asteria-en">Asteria (Female)</option>
-                                    <option value="aura-luna-en">Luna (Female)</option>
-                                    <option value="aura-orion-en">Orion (Male)</option>
-                                    <option value="aura-arcas-en">Arcas (Male)</option>
-                                </optgroup>
-                                <optgroup label="OpenAI">
-                                    <option value="alloy">Alloy</option>
-                                    <option value="echo">Echo</option>
-                                    <option value="shimmer">Shimmer</option>
-                                </optgroup>
-                                <optgroup label="Sarvam (Indian)">
-                                    <option value="anushka">Anushka (Female)</option>
-                                    <option value="arya">Arya (Male)</option>
-                                    <option value="abhilash">Abhilash (Male)</option>
-                                </optgroup>
+                                <option value="deepgram">Deepgram Nova-2</option>
+                                <option value="deepgram-nova3">Deepgram Nova-3</option>
+                                <option value="elevenlabs">ElevenLabs Scribe</option>
                             </select>
                         </div>
+                    </div>
+
+                    {/* TTS Voice */}
+                    <div className="space-y-2">
+                        <label className="text-sm text-gray-400 font-medium flex items-center gap-1.5">
+                            <Volume2 className="w-3.5 h-3.5" /> Voice (TTS)
+                            {voiceId && (
+                                <span className="ml-auto text-xs px-2 py-0.5 rounded bg-white/5 text-gray-500 capitalize">
+                                    {inferTtsProvider(voiceId)}
+                                </span>
+                            )}
+                        </label>
+                        <select
+                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            value={voiceId}
+                            onChange={(e) => setVoiceId(e.target.value)}
+                        >
+                            <optgroup label="Google Cloud — Hindi (1M chars/mo free)">
+                                <option value="hi-IN-Wavenet-A">hi-IN Wavenet-A (Female)</option>
+                                <option value="hi-IN-Wavenet-D">hi-IN Wavenet-D (Female)</option>
+                                <option value="hi-IN-Wavenet-B">hi-IN Wavenet-B (Male)</option>
+                                <option value="hi-IN-Wavenet-C">hi-IN Wavenet-C (Male)</option>
+                                <option value="hi-IN-Neural2-A">hi-IN Neural2-A (Female, premium)</option>
+                                <option value="hi-IN-Neural2-D">hi-IN Neural2-D (Female, premium)</option>
+                                <option value="hi-IN-Neural2-B">hi-IN Neural2-B (Male, premium)</option>
+                                <option value="hi-IN-Neural2-C">hi-IN Neural2-C (Male, premium)</option>
+                            </optgroup>
+                            <optgroup label="ElevenLabs — Female (free tier)">
+                                <option value="EXAVITQu4vr4xnSDxMaL">Sarah (Mature, Reassuring)</option>
+                                <option value="cgSgspJ2msm6clMCkdW9">Jessica (Playful, Warm)</option>
+                                <option value="hpp4J3VqNfWAUOO0d1Us">Bella (Professional, Bright)</option>
+                                <option value="XrExE9yKIg1WjnnlVkGX">Matilda (Knowledgable, Professional)</option>
+                                <option value="Xb7hH8MSUJpSbSDYk0k2">Alice (Clear, Engaging Educator)</option>
+                                <option value="pFZP5JQG7iQjIQuC4Bku">Lily (Velvety Actress)</option>
+                                <option value="FGY2WhTYpPnrIDTdsKH5">Laura (Quirky, Enthusiast)</option>
+                                <option value="SAz9YHcvj6GT2YYXdXww">River (Relaxed, Neutral)</option>
+                            </optgroup>
+                            <optgroup label="ElevenLabs — Male (free tier)">
+                                <option value="cjVigY5qzO86Huf0OWal">Eric (Smooth, Trustworthy)</option>
+                                <option value="bIHbv24MWmeRgasZH58o">Will (Relaxed Optimist)</option>
+                                <option value="iP95p4xoKVk53GoZ742B">Chris (Charming, Down-to-Earth)</option>
+                                <option value="CwhRBWXzGAHq8TQ4Fs17">Roger (Laid-Back, Casual)</option>
+                                <option value="onwK4e9ZLuTAKqWW03F9">Daniel (Steady Broadcaster)</option>
+                                <option value="JBFqnCBsd6RMkjVDRZzb">George (Warm Storyteller)</option>
+                                <option value="IKne3meq5aSn9XLyUdCD">Charlie (Deep, Confident)</option>
+                                <option value="nPczCjzI2devNBz1zQrb">Brian (Deep, Resonant)</option>
+                                <option value="pqHfZKP75CvOlQylNhV4">Bill (Wise, Mature)</option>
+                                <option value="pNInz6obpgDQGcFmaJgB">Adam (Dominant, Firm)</option>
+                                <option value="TX3LPaxmHKxFdv7VOQHJ">Liam (Energetic)</option>
+                                <option value="N2lVS1w4EtoT3dr4eOWO">Callum (Husky)</option>
+                            </optgroup>
+                            <optgroup label="ElevenLabs — Hindi (paid plan only)">
+                                <option value="jUjRbhZWoMK4aDciW36V">Anika (Insurance / Customer Care)</option>
+                                <option value="ni6cdqyS9wBvic5LPA7M">Tara (Expressive Conversational)</option>
+                                <option value="ALCIIw5qAlLDox8iBl0U">Alisha (Soft-Spoken Customer Care)</option>
+                            </optgroup>
+                            <optgroup label="Sarvam — Indian">
+                                <option value="anushka">Anushka (Female)</option>
+                                <option value="arya">Arya (Male)</option>
+                                <option value="abhilash">Abhilash (Male)</option>
+                            </optgroup>
+                            <optgroup label="Deepgram — English">
+                                <option value="aura-asteria-en">Asteria (Female)</option>
+                                <option value="aura-luna-en">Luna (Female)</option>
+                                <option value="aura-orion-en">Orion (Male)</option>
+                                <option value="aura-arcas-en">Arcas (Male)</option>
+                            </optgroup>
+                            <optgroup label="OpenAI">
+                                <option value="alloy">Alloy</option>
+                                <option value="echo">Echo</option>
+                                <option value="shimmer">Shimmer</option>
+                            </optgroup>
+                        </select>
                     </div>
 
                     <button

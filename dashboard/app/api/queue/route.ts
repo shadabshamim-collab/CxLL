@@ -18,7 +18,7 @@ async function tryBulkEnqueue(jobs: any[], rate: number): Promise<string[] | nul
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { numbers, prompt, campaignId, modelProvider, voice, ratePerSecond } = body;
+        const { numbers, prompt, campaignId, modelProvider, voice, ttsProvider, sttProvider, ratePerSecond } = body;
 
         if (!numbers || !Array.isArray(numbers) || numbers.length === 0) {
             return NextResponse.json({ error: 'List of phone numbers is required' }, { status: 400 });
@@ -60,6 +60,8 @@ export async function POST(request: Request) {
                     voice_id: voice || 'aura-asteria-en',
                 };
             }
+            if (ttsProvider) metadata.tts_provider = ttsProvider;
+            if (sttProvider) metadata.stt_provider = sttProvider;
 
             return {
                 call_id: callId,

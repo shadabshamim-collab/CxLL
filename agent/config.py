@@ -17,6 +17,14 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 # ---- ACTIVE PROMPT ----
 SYSTEM_PROMPT = """
+## STRICT SCRIPT ADHERENCE — READ FIRST
+This is a scripted voice call. You MUST follow the scripts below exactly.
+- NEVER invent specific numbers, amounts, account IDs, loan reference numbers, dates, or any figures that are not explicitly written in this prompt.
+- NEVER add topics, offers, or steps that are not in this script.
+- If a script says "rupees fifteen hundred", say exactly that. Do not substitute any other amount.
+- If you don't know a specific detail (e.g. exact EMI amount), say "your EMI amount" — never guess or invent a number.
+- Deviate only if the customer goes completely off-topic, in which case gently steer back to the call purpose.
+
 ## Role & Identity
 You are Anushka, a collection voice agent for XYZ Finance. Your job is to remind customers about upcoming or overdue EMI payments, help them complete payment, and support them empathetically if they are facing difficulty. You are warm, confident, and never use pressure, guilt, or threatening language of any kind.
 
@@ -113,8 +121,8 @@ STT_LANGUAGE = "en"   # "en" supports multi-language code switching in Nova 2
 
 
 # --- 3. TEXT-TO-SPEECH (TTS) SETTINGS ---
-# Choose your voice provider: "openai", "sarvam" (Indian voices), or "cartesia" (Ultra-fast)
-DEFAULT_TTS_PROVIDER = "openai" 
+# Choose your voice provider: "openai", "sarvam" (Indian voices), "cartesia" (Ultra-fast), or "elevenlabs"
+DEFAULT_TTS_PROVIDER = "openai"
 DEFAULT_TTS_VOICE = "alloy"      # OpenAI: alloy, echo, shimmer | Sarvam: anushka, manisha, vidya, arya, abhilash, karun, hitesh
 
 # Sarvam AI Specifics (for Indian Context)
@@ -125,6 +133,17 @@ SARVAM_LANGUAGE = "en-IN" # or hi-IN
 CARTESIA_MODEL = "sonic-2"
 CARTESIA_VOICE = "f786b574-daa5-4673-aa0c-cbe3e8534c02"
 
+# ElevenLabs Specifics
+# TTS models: eleven_turbo_v2_5 (lowest latency), eleven_flash_v2_5 (faster), eleven_multilingual_v2 (best quality)
+# Get voice IDs from: https://api.elevenlabs.io/v1/voices or your ElevenLabs dashboard
+ELEVENLABS_TTS_MODEL = "eleven_turbo_v2_5"
+ELEVENLABS_VOICE_ID = ""         # Set via ELEVENLABS_VOICE_ID env var or campaign voice_id field
+ELEVENLABS_LANGUAGE = "en"       # "hi" for Hindi, "en" for English
+
+# STT model: scribe_v1 supports 99 languages including Hindi/English code-switching
+ELEVENLABS_STT_MODEL = "scribe_v1"
+ELEVENLABS_STT_LANGUAGE = ""     # Leave empty for auto-detect, or set "hi", "en", etc.
+
 
 # --- 4. LARGE LANGUAGE MODEL (LLM) SETTINGS ---
 # Choose "openai" or "groq"
@@ -133,7 +152,14 @@ DEFAULT_LLM_MODEL = "gpt-4o-mini" # OpenAI default
 
 # Groq Specifics (Faster inference)
 GROQ_MODEL = "llama-3.3-70b-versatile"
-GROQ_TEMPERATURE = 0.7
+GROQ_TEMPERATURE = 0.3
+
+# Google Gemini via AI Studio (OpenAI-compatible endpoint)
+# NOTE: 2.0 family has quota=0 on most free keys.
+# Using 2.5-flash-lite: no internal "thinking" overhead → low-latency + reliable for voice.
+# (gemini-2.5-flash burns ~130 tokens on thinking before producing output — bad for streaming TTS.)
+GEMINI_MODEL = "gemini-2.5-flash-lite"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
 # --- 5. TELEPHONY & TRANSFERS ---

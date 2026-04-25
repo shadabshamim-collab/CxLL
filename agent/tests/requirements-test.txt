@@ -1,0 +1,4 @@
+# Test-only dependencies — not needed for production runtime.
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+aioresponses>=0.7.6

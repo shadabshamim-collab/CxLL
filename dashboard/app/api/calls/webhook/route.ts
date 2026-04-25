@@ -74,11 +74,14 @@ async function tryScheduleRetry(
 async function tryWriteSheetDisposition(
     roomName: string,
     disposition: string,
-    details: { notes?: string; sentiment?: string; durationSeconds?: number; turnCount?: number }
+    details: { summary?: string; notes?: string; sentiment?: string; durationSeconds?: number; transcript?: string; attemptCount?: number },
+    sheetsMetaStr?: string
 ): Promise<void> {
     try {
         const { getSheetsMeta, writeDisposition, isValidDisposition } = await import('@/lib/google-sheets');
-        const meta = await getSheetsMeta(roomName);
+        const meta = sheetsMetaStr
+            ? JSON.parse(sheetsMetaStr)
+            : await getSheetsMeta(roomName);
         if (!meta) return; // not a sheets-backed call
 
         const safeDisp = isValidDisposition(disposition)
@@ -89,8 +92,11 @@ async function tryWriteSheetDisposition(
             console.warn(`[Webhook] Unknown disposition "${disposition}" for ${roomName} — defaulting to "Not Verified"`);
         }
 
-        await writeDisposition(meta.sheet_id, meta.tab_name, meta.row_index, safeDisp, roomName, details);
-        console.log(`[Webhook] Sheet row ${meta.row_index} (URN ${meta.urn}) → ${safeDisp} | sentiment=${details.sentiment} duration=${details.durationSeconds}s turns=${details.turnCount}`);
+        await writeDisposition(meta.sheet_id, meta.tab_name, meta.row_index, safeDisp, roomName, {
+            ...details,
+            attemptCount: meta.attempt_count,
+        });
+        console.log(`[Webhook] Sheet row ${meta.row_index} (URN ${meta.urn}) → ${safeDisp} attempt=${meta.attempt_count} | sentiment=${details.sentiment} duration=${details.durationSeconds}s`);
 
         // If Missed Call, trigger retry ladder
         if (safeDisp === 'Missed Call') {
@@ -154,8 +160,9 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { room_name, status, duration_seconds, outcome, error,
-                disposition, sentiment, transcript_preview, turn_count, notes,
-                campaign_id, phone_number, sip_status, reason, retry_delay_seconds } = body;
+                disposition, sentiment, transcript_preview, transcript, summary, turn_count, notes,
+                campaign_id, phone_number, sip_status, reason, retry_delay_seconds,
+                sheets_meta: sheets_meta_str } = body;
 
         if (!room_name) {
             return NextResponse.json({ error: 'room_name is required' }, { status: 400 });
@@ -174,12 +181,20 @@ export async function POST(request: Request) {
 
             // ── Google Sheets write-back ──────────────────────────────
             if (disposition) {
+                if (!sheets_meta_str) {
+                    // sheets_meta missing = call was dispatched without it (e.g. manual UI dispatch).
+                    // Sheet row will NOT be updated. Log at warn so this is never silent.
+                    console.warn(
+                        `[Webhook] sheets_meta missing for room ${room_name} (campaign ${campaign_id}).` +
+                        ` Sheet row will NOT be updated. Dispatch via sheets-sync to ensure write-back.`
+                    );
+                }
                 await tryWriteSheetDisposition(room_name, disposition, {
-                    notes: transcript_preview || notes || '',
+                    summary: summary || transcript_preview || notes || '',
                     sentiment: sentiment || '',
                     durationSeconds: duration_seconds,
-                    turnCount: turn_count,
-                });
+                    transcript: transcript || '',
+                }, sheets_meta_str);
             }
 
             return NextResponse.json({ success: true, summary_saved: true, log });
@@ -212,13 +227,16 @@ export async function POST(request: Request) {
             let retryScheduled = false;
             try {
                 const { getSheetsMeta } = await import('@/lib/google-sheets');
-                const sheetsMeta = await getSheetsMeta(room_name);
+                // Prefer stateless meta from agent; fall back to Redis/in-process store
+                const sheetsMeta = sheets_meta_str
+                    ? JSON.parse(sheets_meta_str)
+                    : await getSheetsMeta(room_name);
                 if (sheetsMeta) {
                     console.log(`[Webhook] SIP ${sipCode} on sheet-backed call (URN ${sheetsMeta.urn}) — writing Missed Call and scheduling via sheets ladder`);
                     await tryWriteSheetDisposition(room_name, 'Missed Call', {
                         notes: `SIP ${sipCode}: ${retryReason}`,
                         durationSeconds: 0,
-                    });
+                    }, sheets_meta_str);
                     retryScheduled = true;
                 }
             } catch { /* Redis unavailable — fall through to standard retry */ }
