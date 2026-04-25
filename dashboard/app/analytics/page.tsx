@@ -86,6 +86,7 @@ const statusColors: Record<string, string> = {
     connected: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
     completed: 'text-green-400 bg-green-500/10 border-green-500/20',
     failed: 'text-red-400 bg-red-500/10 border-red-500/20',
+    dialer_reject: 'text-orange-400 bg-orange-500/10 border-orange-500/20',
 };
 
 export default function AnalyticsPage() {
@@ -288,7 +289,7 @@ export default function AnalyticsPage() {
                                             <td className="px-4 py-3 text-gray-400 truncate max-w-[150px]">{log.campaign_name}</td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-0.5 text-xs rounded-full border ${statusColors[log.status] || 'text-gray-400'}`}>
-                                                    {log.status}
+                                                    {log.status === 'dialer_reject' ? 'Dialer Reject' : log.status}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-gray-300">{formatDuration(log.duration_seconds)}</td>

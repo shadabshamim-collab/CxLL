@@ -224,15 +224,24 @@ export async function POST(request: Request) {
             const sipCode = sip_status || 0;
             const delay = retry_delay_seconds || 300;
 
-            // Missed call (busy/no-answer/timeout) — not an error, will retry
-            const isMissed = retryReason === 'missed_call' || retryReason === 'declined';
+            // SIP 486 returned in <2s = Vobiz/trunk-level rejection before phone rang
+            const isDialerReject = sipCode === 486;
+            const isMissed = !isDialerReject && (retryReason === 'missed_call' || retryReason === 'declined');
+
             await updateCallByRoom(room_name, {
-                status: isMissed ? 'completed' : 'failed',
+                status: isDialerReject ? 'dialer_reject' : (isMissed ? 'completed' : 'failed'),
                 completed_at: new Date().toISOString(),
-                outcome: 'missed_call',
+                outcome: isDialerReject ? 'dialer_reject' : 'missed_call',
                 ...(retryReason === 'declined' ? { error: 'SIP 603: Declined' } : {}),
+                ...(isDialerReject ? { error: `SIP 486: Trunk rejected call before ringing` } : {}),
             });
-            await tryTransitionState(room_name, isMissed ? 'completed' : 'failed', {});
+            await tryTransitionState(room_name, isDialerReject ? 'failed' : (isMissed ? 'completed' : 'failed'), {});
+
+            // Dialer rejects don't retry — trunk issue, not a phone-level miss
+            if (isDialerReject) {
+                console.log(`[Webhook] SIP 486 dialer reject for ${phone_number} — no retry scheduled`);
+                return NextResponse.json({ success: true, sip_status: sipCode, reason: 'dialer_reject', retry_scheduled: false });
+            }
 
             // For sheet-backed calls: write Missed Call to sheet + use sheets retry ladder.
             // This clears "Dialing…" from Col D so the row doesn't get stuck.

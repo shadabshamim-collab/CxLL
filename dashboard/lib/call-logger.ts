@@ -25,7 +25,7 @@ export interface CallLog {
     campaign_name: string;
     phone_number: string;
     room_name: string;
-    status: 'dispatched' | 'dialing' | 'ringing' | 'connected' | 'completed' | 'failed';
+    status: 'dispatched' | 'dialing' | 'ringing' | 'connected' | 'completed' | 'failed' | 'dialer_reject';
     dispatched_at: string;
     connected_at: string | null;
     completed_at: string | null;
