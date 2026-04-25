@@ -1,5 +1,37 @@
 # Changelog
 
+## [Unreleased] — Voicebot Quality, Latency Dashboard & Observability (2026-04-26)
+
+### Added
+
+- **Live Call Monitor** (`/monitor`) — real-time transcript streaming page. Agent pushes transcript updates every 2 seconds via webhook; dashboard streams them to the browser over SSE. Left panel shows active calls with green pulse; right panel shows live 🤖/👤 transcript turns.
+- **Pipeline Latency Breakdown** (`/analytics`) — per-call latency table showing Dial → EOU Wait → STT → LLM TTFT → TTS TTFB with colour-coded stacked mini-bars. Hover on LLM/TTS columns shows min/max range. Campaign-level aggregate averages table appears when 2+ campaigns have data.
+- **Vobiz Webhook receiver** (`/api/vobiz/webhook`) — new endpoint to receive real-time SIP events from the Vobiz trunk (ringing, answered, ended, failed). Logs full payload for debugging. Accepts GET for liveness verification.
+- **`Dialer Reject` status** — SIP 486 returned in <2 seconds is now classified as a trunk-level rejection (orange badge, no retry) rather than a missed call. Error message stored: `SIP 486: Trunk rejected call before ringing`.
+- **ElevenLabs, Gemini, groq-fast LLM/TTS providers** — `_build_llm()` and `_build_tts()` extended with `elevenlabs`, `google/gemini`, and `groq-fast` (llama-3.1-8b-instant) options. Auto-detect Google TTS by voice name pattern (e.g. `hi-IN-Wavenet-A`).
+- **Per-campaign Voice & Tuning controls** — campaign editor exposes sliders for VAD silence duration (0.3–1.0 s), LLM temperature (0.1–0.9), max completion tokens (200–2000), and STT language dropdown (en/hi/hi-en/auto). Values embedded in LiveKit metadata at dispatch and applied by the agent at call time — no restart needed.
+- **Latency instrumentation in agent** — `conversation_item_added` event collects `stt_ms`, `eou_delay_ms`, `llm_ttft_ms`, `tts_ttfb_ms` per turn. `_dial_ms` times `create_sip_participant()`. `_ttfr_ms` times first `generate_reply()`. Avg/min/max aggregated and sent in post-call webhook as `latency` field.
+- **STT/TTS/LLM provider selectors in dispatch UI** — `CallDispatcher` and `BulkDialer` expose explicit per-call provider overrides independent of campaign defaults.
+
+### Changed
+
+- **ElevenLabs Turbo v2.5 as default TTS** (`eleven_turbo_v2_5`) — ~300 ms TTFB vs ~800 ms for multilingual. Default voice changed to Anika (`jUjRbhZWoMK4aDciW36V`).
+- **LLM defaults hardened** — `max_completion_tokens=1200`, `temperature=0.6` applied across all providers (Groq, OpenAI, Gemini). Prevents runaway long responses and reduces hallucination variance.
+- **STRICT SCRIPT ADHERENCE guardrail** — top-of-prompt block instructs the LLM to never invent numbers, amounts, account IDs, or steps not in the script. Combined with lower temperature, eliminates arbitrary content hallucination.
+- **Greeting prompt restructured** — `INITIAL_GREETING` and `fallback_greeting` now use `"Speak ONLY this sentence — nothing else"` directive. Fixes LLM speaking instruction text (e.g. "waiting for customer response") aloud to the customer.
+- **Transcript modal trigger** — clicking the outcome badge (e.g. "payment committed") opens the transcript popup; clicking elsewhere on the row does nothing. Previously the entire row was clickable.
+- **`CallLog` schema extended** — added `latency: LatencyData | null`, `transcript: string | null`, and `dialer_reject` to the status union. `updateCallByRoom` accepts these fields.
+- **Webhook summary handler** — now stores `transcript` (full) and `latency` object from agent post-call payload, not just `transcript_preview`.
+
+### Fixed
+
+- **Transcript extraction SDK compatibility** — `_get_history_items()` helper handles `session.history` and `ChatContext.items` as either properties or callable methods, fixing `'method' object is not iterable` warning on SDK 1.5.6.
+- **`max_tokens` constructor error** — removed invalid `max_tokens` kwarg (not accepted by LiveKit `openai.LLM`); replaced with `max_completion_tokens` throughout.
+- **Monitor page crash** — `maskPhone()` called with undefined `phone_number` on SSE connect; fixed with optional param and null guard.
+- **Agent port conflict** — added `lsof -ti :8081 | xargs kill` to startup flow; clears stale worker from previous session before binding.
+
+---
+
 ## [Unreleased] — Google Sheets Lead Source + Primary Number Verification (2026-04-24)
 
 ### Added
