@@ -283,8 +283,12 @@ async def _post_call_summary(
         logger.warning(f"Post-call summary failed: {e}")
 
 
-def _build_stt(config_provider: str = None):
+def _build_stt(config_provider: str = None, stt_language: str = None):
     provider = (config_provider or os.getenv("STT_PROVIDER", config.STT_PROVIDER)).lower()
+    # stt_language from campaign overrides the global STT_LANGUAGE config
+    # "hi-en" is Nova-2/3's code-switching mode — pass "multi" for automatic detection
+    lang_map = {"hi-en": "multi", "multi": "multi", "auto": None}
+    effective_language = lang_map.get(stt_language or "", stt_language) or config.STT_LANGUAGE
 
     if provider == "elevenlabs":
         api_key = os.getenv("ELEVENLABS_API_KEY")
@@ -292,16 +296,16 @@ def _build_stt(config_provider: str = None):
             logger.warning("ElevenLabs STT requested but ELEVENLABS_API_KEY not set — falling back to Deepgram")
         else:
             model_id = os.getenv("ELEVENLABS_STT_MODEL", config.ELEVENLABS_STT_MODEL)
-            lang = os.getenv("ELEVENLABS_STT_LANGUAGE", config.ELEVENLABS_STT_LANGUAGE) or None
-            logger.info(f"Using ElevenLabs STT (model: {model_id})")
+            lang = os.getenv("ELEVENLABS_STT_LANGUAGE", config.ELEVENLABS_STT_LANGUAGE) or stt_language or None
+            logger.info(f"Using ElevenLabs STT (model: {model_id}, lang: {lang})")
             return elevenlabs.STT(api_key=api_key, model_id=model_id, language_code=lang)
 
     if provider == "deepgram-nova3":
-        logger.info("Using Deepgram STT (model: nova-3)")
-        return deepgram.STT(model="nova-3", language=config.STT_LANGUAGE)
+        logger.info(f"Using Deepgram STT (model: nova-3, lang: {effective_language})")
+        return deepgram.STT(model="nova-3", language=effective_language)
 
-    logger.info(f"Using Deepgram STT (model: {config.STT_MODEL})")
-    return deepgram.STT(model=config.STT_MODEL, language=config.STT_LANGUAGE)
+    logger.info(f"Using Deepgram STT (model: {config.STT_MODEL}, lang: {effective_language})")
+    return deepgram.STT(model=config.STT_MODEL, language=effective_language)
 
 
 def _build_tts(config_provider: str = None, config_voice: str = None):
@@ -368,32 +372,32 @@ def _build_tts(config_provider: str = None, config_voice: str = None):
     return openai.TTS(model=model, voice=voice)
 
 
-def _build_llm(config_provider: str = None):
+def _build_llm(config_provider: str = None, temperature: float = 0.6, max_completion_tokens: int = 1200):
     provider = (config_provider or os.getenv("LLM_PROVIDER", config.DEFAULT_LLM_PROVIDER)).lower()
 
     if provider == "groq":
-        logger.info(f"Using Groq LLM (model: {os.getenv('GROQ_MODEL', config.GROQ_MODEL)})")
+        logger.info(f"Using Groq LLM (model: {os.getenv('GROQ_MODEL', config.GROQ_MODEL)}, temp={temperature}, max_tokens={max_completion_tokens})")
         return openai.LLM(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.getenv("GROQ_API_KEY"),
             model=os.getenv("GROQ_MODEL", config.GROQ_MODEL),
-            temperature=0.6,
-            max_completion_tokens=1200,
+            temperature=temperature,
+            max_completion_tokens=max_completion_tokens,
         )
 
     if provider == "groq-fast":
-        logger.info("Using Groq LLM (fast: llama-3.1-8b-instant)")
+        logger.info(f"Using Groq LLM (fast: llama-3.1-8b-instant, temp={temperature})")
         return openai.LLM(
             base_url="https://api.groq.com/openai/v1",
             api_key=os.getenv("GROQ_API_KEY"),
             model="llama-3.1-8b-instant",
-            temperature=0.6,
-            max_completion_tokens=1200,
+            temperature=temperature,
+            max_completion_tokens=max_completion_tokens,
         )
 
     if provider == "openai-mini":
-        logger.info("Using OpenAI LLM (gpt-4o-mini)")
-        return openai.LLM(model="gpt-4o-mini", temperature=0.6, max_completion_tokens=1200)
+        logger.info(f"Using OpenAI LLM (gpt-4o-mini, temp={temperature})")
+        return openai.LLM(model="gpt-4o-mini", temperature=temperature, max_completion_tokens=max_completion_tokens)
 
     if provider in ("gemini", "google"):
         api_key = os.getenv("GOOGLE_API_KEY")
@@ -403,21 +407,21 @@ def _build_llm(config_provider: str = None):
                 base_url="https://api.groq.com/openai/v1",
                 api_key=os.getenv("GROQ_API_KEY"),
                 model=config.GROQ_MODEL,
-                temperature=0.6,
-                max_completion_tokens=1200,
+                temperature=temperature,
+                max_completion_tokens=max_completion_tokens,
             )
         model = os.getenv("GEMINI_MODEL", config.GEMINI_MODEL)
-        logger.info(f"Using Google Gemini (model: {model})")
+        logger.info(f"Using Google Gemini (model: {model}, temp={temperature})")
         from google.genai.types import ThinkingConfig
         return google_plugin.LLM(
             model=model,
             api_key=api_key,
-            temperature=0.6,
+            temperature=temperature,
             thinking_config=ThinkingConfig(thinking_budget=0),
         )
 
-    logger.info("Using OpenAI LLM (gpt-4o)")
-    return openai.LLM(model=config.DEFAULT_LLM_MODEL, temperature=0.6, max_completion_tokens=1200)
+    logger.info(f"Using OpenAI LLM (gpt-4o, temp={temperature})")
+    return openai.LLM(model=config.DEFAULT_LLM_MODEL, temperature=temperature, max_completion_tokens=max_completion_tokens)
 
 
 
@@ -619,10 +623,13 @@ async def entrypoint(ctx: agents.JobContext):
     else:
         logger.info("Using default prompt from config.py")
 
-    # ── Tuned VAD for Indian telecom networks ──
-    # min_silence_duration: can be overridden per-campaign (default 0.4s for fast turn-taking).
-    # Set higher (0.6-0.8) only if customers are getting cut off mid-pause.
-    min_silence_dur = float(config_dict.get("vad_min_silence_duration", 0.4))
+    # ── Per-campaign tuning params (set in campaign JSON via /campaigns editor) ──
+    min_silence_dur     = float(config_dict.get("vad_min_silence_duration", 0.4))
+    llm_temperature     = float(config_dict.get("llm_temperature", 0.6))
+    max_comp_tokens     = int(config_dict.get("max_completion_tokens", 1200))
+    stt_language_hint   = config_dict.get("stt_language") or None
+    logger.info(f"Tuning: vad={min_silence_dur}s temp={llm_temperature} max_tokens={max_comp_tokens} stt_lang={stt_language_hint or 'default'}")
+
     session = AgentSession(
         vad=silero.VAD.load(
             min_speech_duration=0.05,
@@ -630,8 +637,15 @@ async def entrypoint(ctx: agents.JobContext):
             activation_threshold=0.5,
             prefix_padding_duration=0.2,
         ),
-        stt=_build_stt(config_dict.get("stt_provider") or config_dict.get("model_provider")),
-        llm=_build_llm(config_dict.get("model_provider")),
+        stt=_build_stt(
+            config_dict.get("stt_provider") or config_dict.get("model_provider"),
+            stt_language=stt_language_hint,
+        ),
+        llm=_build_llm(
+            config_dict.get("model_provider"),
+            temperature=llm_temperature,
+            max_completion_tokens=max_comp_tokens,
+        ),
         tts=_build_tts(config_dict.get("tts_provider") or config_dict.get("model_provider"), config_dict.get("voice_id")),
     )
 

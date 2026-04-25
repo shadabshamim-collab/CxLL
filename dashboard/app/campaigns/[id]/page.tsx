@@ -26,6 +26,10 @@ interface Campaign {
     voice_id: string;
     language: string;
     transfer_number: string;
+    vad_min_silence_duration?: number;
+    llm_temperature?: number;
+    max_completion_tokens?: number;
+    stt_language?: string;
     current_version: number;
     versions: CampaignVersion[];
     created_at: string;
@@ -53,6 +57,10 @@ export default function EditCampaignPage({ params }: { params: Promise<{ id: str
         voice_id: 'aura-asteria-en',
         language: 'en',
         transfer_number: '',
+        vad_min_silence_duration: 0.4,
+        llm_temperature: 0.6,
+        max_completion_tokens: 1200,
+        stt_language: 'en',
     });
 
     useEffect(() => {
@@ -72,6 +80,10 @@ export default function EditCampaignPage({ params }: { params: Promise<{ id: str
                         voice_id: data.campaign.voice_id,
                         language: data.campaign.language,
                         transfer_number: data.campaign.transfer_number,
+                        vad_min_silence_duration: data.campaign.vad_min_silence_duration ?? 0.4,
+                        llm_temperature: data.campaign.llm_temperature ?? 0.6,
+                        max_completion_tokens: data.campaign.max_completion_tokens ?? 1200,
+                        stt_language: data.campaign.stt_language ?? 'en',
                     });
                 }
             })
@@ -325,6 +337,74 @@ export default function EditCampaignPage({ params }: { params: Promise<{ id: str
                                 <option value="hi-IN">Hindi (India)</option>
                                 <option value="en-IN">English (India)</option>
                             </select>
+                        </div>
+                    </div>
+
+                    {/* Voice & Tuning */}
+                    <div className="p-5 bg-white/3 border border-white/10 rounded-xl space-y-5">
+                        <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Voice & Tuning</h3>
+
+                        <div className="grid grid-cols-2 gap-6">
+                            {/* VAD Silence Duration */}
+                            <div className="space-y-2">
+                                <div className="flex justify-between">
+                                    <label className="text-sm text-gray-400 font-medium">Silence Threshold</label>
+                                    <span className="text-sm text-purple-400 font-mono">{form.vad_min_silence_duration.toFixed(1)}s</span>
+                                </div>
+                                <input
+                                    type="range" min="0.3" max="1.0" step="0.1"
+                                    value={form.vad_min_silence_duration}
+                                    onChange={e => setForm(prev => ({ ...prev, vad_min_silence_duration: parseFloat(e.target.value) }))}
+                                    className="w-full accent-purple-500"
+                                />
+                                <p className="text-xs text-gray-600">How long agent waits after customer stops (0.3s = fast, 1.0s = patient)</p>
+                            </div>
+
+                            {/* LLM Temperature */}
+                            <div className="space-y-2">
+                                <div className="flex justify-between">
+                                    <label className="text-sm text-gray-400 font-medium">LLM Temperature</label>
+                                    <span className="text-sm text-purple-400 font-mono">{form.llm_temperature.toFixed(1)}</span>
+                                </div>
+                                <input
+                                    type="range" min="0.1" max="0.9" step="0.1"
+                                    value={form.llm_temperature}
+                                    onChange={e => setForm(prev => ({ ...prev, llm_temperature: parseFloat(e.target.value) }))}
+                                    className="w-full accent-purple-500"
+                                />
+                                <p className="text-xs text-gray-600">Lower = scripted, higher = conversational</p>
+                            </div>
+
+                            {/* Max Completion Tokens */}
+                            <div className="space-y-2">
+                                <div className="flex justify-between">
+                                    <label className="text-sm text-gray-400 font-medium">Max Response Tokens</label>
+                                    <span className="text-sm text-purple-400 font-mono">{form.max_completion_tokens}</span>
+                                </div>
+                                <input
+                                    type="range" min="200" max="2000" step="100"
+                                    value={form.max_completion_tokens}
+                                    onChange={e => setForm(prev => ({ ...prev, max_completion_tokens: parseInt(e.target.value) }))}
+                                    className="w-full accent-purple-500"
+                                />
+                                <p className="text-xs text-gray-600">Caps agent response length (~200 tokens ≈ 2 sentences)</p>
+                            </div>
+
+                            {/* STT Language */}
+                            <div className="space-y-2">
+                                <label className="text-sm text-gray-400 font-medium">STT Language Hint</label>
+                                <select
+                                    value={form.stt_language}
+                                    onChange={e => setForm(prev => ({ ...prev, stt_language: e.target.value }))}
+                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500"
+                                >
+                                    <option value="en">English (en)</option>
+                                    <option value="hi">Hindi (hi)</option>
+                                    <option value="hi-en">Hinglish — Hindi + English</option>
+                                    <option value="multi">Multi-language (auto)</option>
+                                </select>
+                                <p className="text-xs text-gray-600">Helps STT model transcribe accurately</p>
+                            </div>
                         </div>
                     </div>
 

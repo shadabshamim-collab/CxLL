@@ -42,6 +42,11 @@ export interface Campaign {
     updated_at: string;
     current_version: number;
     versions: CampaignVersion[];
+    // Voice & Tuning — per-campaign quality controls
+    vad_min_silence_duration?: number;  // 0.3 – 1.0s; how long agent waits after customer stops
+    llm_temperature?: number;           // 0.1 – 0.9; lower = more scripted
+    max_completion_tokens?: number;     // 200 – 2000; caps response length
+    stt_language?: string;              // "en" | "hi" | "hi-en" | "auto"
     // Optional — only present on campaigns using Google Sheets as lead source
     lead_source?: CampaignLeadSource;
     retry_ladder?: CampaignRetryLadder;

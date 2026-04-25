@@ -73,6 +73,11 @@ export async function POST(request: Request) {
                 fallback_greeting: campaign.fallback_greeting,
                 model_provider: modelProvider || campaign.model_provider,
                 voice_id: voice || campaign.voice_id,
+                // Voice & Tuning — per-campaign quality controls set in the campaign editor
+                ...(campaign.vad_min_silence_duration != null ? { vad_min_silence_duration: campaign.vad_min_silence_duration } : {}),
+                ...(campaign.llm_temperature != null ? { llm_temperature: campaign.llm_temperature } : {}),
+                ...(campaign.max_completion_tokens != null ? { max_completion_tokens: campaign.max_completion_tokens } : {}),
+                ...(campaign.stt_language ? { stt_language: campaign.stt_language } : {}),
                 // Pass user_name so agent can reference it in post-call analysis
                 ...(sheets_meta?.user_name ? { user_name: sheets_meta.user_name } : {}),
                 // Embed sheets_meta in LiveKit metadata so agent echoes it back in every
