@@ -3,6 +3,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Phone, Clock, CheckCircle, XCircle, ArrowUpRight, RefreshCw, TrendingUp, Percent, Activity, PhoneOff, Copy, Check } from 'lucide-react';
 
+interface LatencyData {
+    dial_ms?: number;
+    ttfr_ms?: number;
+    avg_stt_ms?: number;
+    avg_eou_delay_ms?: number;
+    avg_llm_ttft_ms?: number;
+    avg_llm_duration_ms?: number;
+    avg_tts_ttfb_ms?: number;
+    min_llm_ttft_ms?: number; max_llm_ttft_ms?: number;
+    min_tts_ttfb_ms?: number; max_tts_ttfb_ms?: number;
+    turns?: Array<Record<string, number>>;
+}
+
 interface CallLog {
     id: string;
     campaign_id: string;
@@ -23,6 +36,7 @@ interface CallLog {
     model_provider: string;
     voice_id: string;
     error: string | null;
+    latency: LatencyData | null;
 }
 
 interface Stats {
@@ -326,6 +340,9 @@ export default function AnalyticsPage() {
                     </div>
                 </div>
 
+                {/* Pipeline Latency Breakdown */}
+                <LatencyBreakdown logs={filteredLogs} />
+
                 {/* Transcript Modal */}
                 {selectedCall && (
                     <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setSelectedCall(null)}>
@@ -415,6 +432,179 @@ function StatCard({ label, value, icon, color, isText }: { label: string; value:
                 <span className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</span>
             </div>
             <span className={`text-xl font-bold ${color}`}>{isText ? value : value}</span>
+        </div>
+    );
+}
+
+// ── Latency segment colors ──────────────────────────────────────────────────
+const SEG = {
+    dial:    { label: 'Dial',      color: 'bg-amber-500',   text: 'text-amber-400'  },
+    eou:     { label: 'EOU Wait',  color: 'bg-yellow-500',  text: 'text-yellow-400' },
+    stt:     { label: 'STT',       color: 'bg-cyan-500',    text: 'text-cyan-400'   },
+    llm:     { label: 'LLM TTFT',  color: 'bg-violet-500',  text: 'text-violet-400' },
+    tts:     { label: 'TTS TTFB',  color: 'bg-blue-500',    text: 'text-blue-400'   },
+} as const;
+
+function LatencyBar({ lat }: { lat: LatencyData }) {
+    const dial  = lat.dial_ms  || 0;
+    const eou   = lat.avg_eou_delay_ms  || 0;
+    const stt   = lat.avg_stt_ms        || 0;
+    const llm   = lat.avg_llm_ttft_ms   || 0;
+    const tts   = lat.avg_tts_ttfb_ms   || 0;
+    const total = dial + eou + stt + llm + tts;
+    if (total === 0) return <span className="text-gray-600 text-xs">no data</span>;
+    const segs = [
+        { key: 'dial', val: dial },
+        { key: 'eou',  val: eou  },
+        { key: 'stt',  val: stt  },
+        { key: 'llm',  val: llm  },
+        { key: 'tts',  val: tts  },
+    ].filter(s => s.val > 0) as { key: keyof typeof SEG; val: number }[];
+
+    return (
+        <div className="flex items-center gap-2 w-full min-w-[160px]">
+            <div className="flex h-2 rounded-full overflow-hidden flex-1">
+                {segs.map(s => (
+                    <div
+                        key={s.key}
+                        className={SEG[s.key].color}
+                        style={{ width: `${(s.val / total) * 100}%` }}
+                        title={`${SEG[s.key].label}: ${s.val}ms`}
+                    />
+                ))}
+            </div>
+            <span className="text-xs text-gray-400 shrink-0">{total}ms</span>
+        </div>
+    );
+}
+
+function LatencyBreakdown({ logs }: { logs: CallLog[] }) {
+    const withLatency = logs.filter(l => l.latency && (
+        l.latency.dial_ms || l.latency.avg_llm_ttft_ms || l.latency.avg_tts_ttfb_ms
+    ));
+    if (withLatency.length === 0) return null;
+
+    // Campaign-level aggregates
+    const bycamp: Record<string, { name: string; dial: number[]; eou: number[]; stt: number[]; llm: number[]; tts: number[]; }> = {};
+    for (const log of withLatency) {
+        const lat = log.latency!;
+        const k = log.campaign_id || 'custom';
+        if (!bycamp[k]) bycamp[k] = { name: log.campaign_name || 'Custom', dial: [], eou: [], stt: [], llm: [], tts: [] };
+        if (lat.dial_ms) bycamp[k].dial.push(lat.dial_ms);
+        if (lat.avg_eou_delay_ms) bycamp[k].eou.push(lat.avg_eou_delay_ms);
+        if (lat.avg_stt_ms) bycamp[k].stt.push(lat.avg_stt_ms);
+        if (lat.avg_llm_ttft_ms) bycamp[k].llm.push(lat.avg_llm_ttft_ms);
+        if (lat.avg_tts_ttfb_ms) bycamp[k].tts.push(lat.avg_tts_ttfb_ms);
+    }
+    const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+
+    return (
+        <div className="mt-6">
+            <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Pipeline Latency Breakdown</h2>
+
+            {/* Legend */}
+            <div className="flex flex-wrap gap-3 mb-4">
+                {(Object.keys(SEG) as (keyof typeof SEG)[]).map(k => (
+                    <div key={k} className="flex items-center gap-1.5">
+                        <div className={`w-3 h-3 rounded-sm ${SEG[k].color}`} />
+                        <span className={`text-xs ${SEG[k].text}`}>{SEG[k].label}</span>
+                    </div>
+                ))}
+            </div>
+
+            {/* Campaign averages */}
+            {Object.keys(bycamp).length > 1 && (
+                <div className="mb-4 bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b border-white/10 text-gray-500 text-left">
+                                <th className="px-4 py-2 font-medium">Campaign</th>
+                                <th className="px-4 py-2 font-medium text-right">Avg Dial</th>
+                                <th className="px-4 py-2 font-medium text-right">Avg EOU</th>
+                                <th className="px-4 py-2 font-medium text-right">Avg STT</th>
+                                <th className="px-4 py-2 font-medium text-right">Avg LLM TTFT</th>
+                                <th className="px-4 py-2 font-medium text-right">Avg TTS TTFB</th>
+                                <th className="px-4 py-2 font-medium">Pipeline</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Object.entries(bycamp).map(([id, d]) => {
+                                const lat: LatencyData = {
+                                    dial_ms: avg(d.dial),
+                                    avg_eou_delay_ms: avg(d.eou),
+                                    avg_stt_ms: avg(d.stt),
+                                    avg_llm_ttft_ms: avg(d.llm),
+                                    avg_tts_ttfb_ms: avg(d.tts),
+                                };
+                                return (
+                                    <tr key={id} className="border-b border-white/5">
+                                        <td className="px-4 py-2 text-white">{d.name}</td>
+                                        <td className="px-4 py-2 text-amber-400 text-right">{avg(d.dial) || '-'}{avg(d.dial) ? 'ms' : ''}</td>
+                                        <td className="px-4 py-2 text-yellow-400 text-right">{avg(d.eou) || '-'}{avg(d.eou) ? 'ms' : ''}</td>
+                                        <td className="px-4 py-2 text-cyan-400 text-right">{avg(d.stt) || '-'}{avg(d.stt) ? 'ms' : ''}</td>
+                                        <td className="px-4 py-2 text-violet-400 text-right">{avg(d.llm) || '-'}{avg(d.llm) ? 'ms' : ''}</td>
+                                        <td className="px-4 py-2 text-blue-400 text-right">{avg(d.tts) || '-'}{avg(d.tts) ? 'ms' : ''}</td>
+                                        <td className="px-4 py-2 w-48"><LatencyBar lat={lat} /></td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Per-call breakdown */}
+            <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b border-white/10 text-gray-500 text-left">
+                                <th className="px-4 py-2 font-medium">Phone</th>
+                                <th className="px-4 py-2 font-medium">Campaign</th>
+                                <th className="px-4 py-2 font-medium text-right">Dial</th>
+                                <th className="px-4 py-2 font-medium text-right">TTFR</th>
+                                <th className="px-4 py-2 font-medium text-right">EOU</th>
+                                <th className="px-4 py-2 font-medium text-right">STT</th>
+                                <th className="px-4 py-2 font-medium text-right">LLM TTFT</th>
+                                <th className="px-4 py-2 font-medium text-right">TTS TTFB</th>
+                                <th className="px-4 py-2 font-medium">Pipeline</th>
+                                <th className="px-4 py-2 font-medium">Turns</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {withLatency.slice(0, 50).map(log => {
+                                const lat = log.latency!;
+                                return (
+                                    <tr key={log.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                        <td className="px-4 py-2 font-mono text-white">{maskPhone(log.phone_number)}</td>
+                                        <td className="px-4 py-2 text-gray-400 truncate max-w-[140px]">{log.campaign_name}</td>
+                                        <td className="px-4 py-2 text-amber-400 text-right">{lat.dial_ms ? `${lat.dial_ms}ms` : '-'}</td>
+                                        <td className="px-4 py-2 text-gray-300 text-right">{lat.ttfr_ms ? `${lat.ttfr_ms}ms` : '-'}</td>
+                                        <td className="px-4 py-2 text-yellow-400 text-right">{lat.avg_eou_delay_ms ? `${lat.avg_eou_delay_ms}ms` : '-'}</td>
+                                        <td className="px-4 py-2 text-cyan-400 text-right">{lat.avg_stt_ms ? `${lat.avg_stt_ms}ms` : '-'}</td>
+                                        <td className="px-4 py-2 text-violet-400 text-right">
+                                            {lat.avg_llm_ttft_ms ? (
+                                                <span title={`min ${lat.min_llm_ttft_ms}ms / max ${lat.max_llm_ttft_ms}ms`}>
+                                                    {lat.avg_llm_ttft_ms}ms
+                                                </span>
+                                            ) : '-'}
+                                        </td>
+                                        <td className="px-4 py-2 text-blue-400 text-right">
+                                            {lat.avg_tts_ttfb_ms ? (
+                                                <span title={`min ${lat.min_tts_ttfb_ms}ms / max ${lat.max_tts_ttfb_ms}ms`}>
+                                                    {lat.avg_tts_ttfb_ms}ms
+                                                </span>
+                                            ) : '-'}
+                                        </td>
+                                        <td className="px-4 py-2 w-52"><LatencyBar lat={lat} /></td>
+                                        <td className="px-4 py-2 text-gray-500 text-center">{lat.turns?.length ?? '-'}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 }

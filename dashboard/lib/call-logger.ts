@@ -4,6 +4,21 @@ import { isAirtableConfigured, CallLogsTable } from './airtable';
 import { getRedis } from './redis';
 import { getRealtimeStats } from './call-state';
 
+export interface LatencyData {
+    dial_ms?: number;
+    ttfr_ms?: number;
+    avg_stt_ms?: number;
+    avg_eou_delay_ms?: number;
+    avg_llm_ttft_ms?: number;
+    avg_llm_duration_ms?: number;
+    avg_tts_ttfb_ms?: number;
+    avg_tts_duration_ms?: number;
+    min_stt_ms?: number; max_stt_ms?: number;
+    min_llm_ttft_ms?: number; max_llm_ttft_ms?: number;
+    min_tts_ttfb_ms?: number; max_tts_ttfb_ms?: number;
+    turns?: Array<Record<string, number>>;
+}
+
 export interface CallLog {
     id: string;
     campaign_id: string;
@@ -19,10 +34,12 @@ export interface CallLog {
     disposition: string | null;
     sentiment: string | null;
     transcript_preview: string | null;
+    transcript: string | null;
     turn_count: number | null;
     model_provider: string;
     voice_id: string;
     error: string | null;
+    latency: LatencyData | null;
 }
 
 // ── File-based fallback ──────────────────────────────────────────────
@@ -62,10 +79,12 @@ function fieldsToCallLog(fields: Record<string, any>): CallLog {
         disposition: fields.disposition || null,
         sentiment: fields.sentiment || null,
         transcript_preview: fields.transcript_preview || null,
+        transcript: fields.transcript || null,
         turn_count: fields.turn_count ?? null,
         model_provider: fields.model_provider || '',
         voice_id: fields.voice_id || '',
         error: fields.error || null,
+        latency: fields.latency || null,
     };
 }
 
@@ -119,16 +138,16 @@ export async function logCallDispatched(params: {
         dispatched_at: now,
         connected_at: null, completed_at: null, duration_seconds: null,
         outcome: null, disposition: null, sentiment: null,
-        transcript_preview: null, turn_count: null,
+        transcript_preview: null, transcript: null, turn_count: null,
         model_provider: params.model_provider,
-        voice_id: params.voice_id, error: null,
+        voice_id: params.voice_id, error: null, latency: null,
     });
     writeFileLogs(logs);
 }
 
 export async function updateCallByRoom(
     room_name: string,
-    update: Partial<Pick<CallLog, 'status' | 'connected_at' | 'completed_at' | 'duration_seconds' | 'outcome' | 'disposition' | 'sentiment' | 'transcript_preview' | 'turn_count' | 'error'>>
+    update: Partial<Pick<CallLog, 'status' | 'connected_at' | 'completed_at' | 'duration_seconds' | 'outcome' | 'disposition' | 'sentiment' | 'transcript_preview' | 'transcript' | 'turn_count' | 'error' | 'latency'>>
 ): Promise<CallLog | null> {
     if (isAirtableConfigured()) {
         try {

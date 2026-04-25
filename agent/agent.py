@@ -216,6 +216,7 @@ async def _post_call_summary(
     campaign_id: str = None,
     user_name: str = "",
     sheets_meta: str = None,
+    latency_data: dict = None,
 ):
     """Extract transcript from session, analyze it, and send summary to dashboard."""
     try:
@@ -274,6 +275,8 @@ async def _post_call_summary(
             else:
                 summary["outcome"] = "no_conversation"
 
+        if latency_data:
+            summary["latency"] = latency_data
         if sheets_meta:
             summary["sheets_meta"] = sheets_meta
         await _notify_dashboard(room_name, "summary", **summary)
@@ -657,6 +660,43 @@ async def entrypoint(ctx: agents.JobContext):
     user_name = config_dict.get("user_name", "")
     sheets_meta_raw = config_dict.get("sheets_meta")  # JSON string; echoed in all webhook calls
 
+    # ── Per-turn latency collection ──
+    # Collected from ChatMessage.metrics on each conversation_item_added event.
+    # Keys collected per turn: stt_ms, eou_delay_ms, llm_ttft_ms, llm_duration_ms, tts_ttfb_ms, tts_duration_ms
+    _turn_latencies: list[dict] = []
+    _dial_ms: int = 0
+    _ttfr_ms: int = 0  # Time To First Response: call answered → first agent speech starts
+
+    def _on_conversation_item_added(event):
+        try:
+            msg = event.item
+            metrics = getattr(msg, 'metrics', None)
+            if not metrics:
+                return
+            turn: dict = {}
+            stt = metrics.get("stt_metrics")
+            eou = metrics.get("eou_metrics")
+            llm = metrics.get("llm_metrics")
+            tts = metrics.get("tts_metrics")
+            if stt:
+                turn["stt_ms"] = round(stt.duration * 1000)
+                turn["stt_audio_ms"] = round(stt.audio_duration * 1000)
+            if eou:
+                turn["eou_delay_ms"] = round(eou.end_of_utterance_delay * 1000)
+                turn["transcription_delay_ms"] = round(eou.transcription_delay * 1000)
+            if llm:
+                turn["llm_ttft_ms"] = round(llm.ttft * 1000)
+                turn["llm_duration_ms"] = round(llm.duration * 1000)
+                turn["llm_tokens"] = llm.completion_tokens
+            if tts:
+                turn["tts_ttfb_ms"] = round(tts.ttfb * 1000)
+                turn["tts_duration_ms"] = round(tts.duration * 1000)
+            if turn:
+                _turn_latencies.append(turn)
+                logger.debug(f"Turn latency: {turn}")
+        except Exception as e:
+            logger.debug(f"Metrics collection error: {e}")
+
     @ctx.room.on("disconnected")
     def _on_disconnect():
         transcript_update_stop.set()
@@ -665,7 +705,17 @@ async def entrypoint(ctx: agents.JobContext):
         if sheets_meta_raw:
             extra["sheets_meta"] = sheets_meta_raw
         asyncio.ensure_future(_notify_dashboard(ctx.room.name, "completed", **extra))
-        asyncio.ensure_future(_post_call_summary(session, ctx.room.name, duration, campaign_id, user_name, sheets_meta_raw))
+
+        # Compute aggregate latency stats from per-turn data
+        latency_summary = {"dial_ms": _dial_ms, "ttfr_ms": _ttfr_ms, "turns": _turn_latencies}
+        if _turn_latencies:
+            for key in ("stt_ms", "eou_delay_ms", "llm_ttft_ms", "llm_duration_ms", "tts_ttfb_ms", "tts_duration_ms"):
+                vals = [t[key] for t in _turn_latencies if key in t]
+                if vals:
+                    latency_summary[f"avg_{key}"] = round(sum(vals) / len(vals))
+                    latency_summary[f"min_{key}"] = min(vals)
+                    latency_summary[f"max_{key}"] = max(vals)
+        asyncio.ensure_future(_post_call_summary(session, ctx.room.name, duration, campaign_id, user_name, sheets_meta_raw, latency_data=latency_summary))
 
     # Background task to stream transcript updates every 2 seconds
     transcript_update_stop = asyncio.Event()
@@ -686,6 +736,9 @@ async def entrypoint(ctx: agents.JobContext):
             noise_cancellation=noise_cancellation.BVCTelephony(),
         ),
     )
+
+    # Hook metrics collection AFTER session.start() so session is ready
+    session.on("conversation_item_added", _on_conversation_item_added)
 
     # Start background transcript streaming
     asyncio.create_task(_stream_transcript_updates())
@@ -708,6 +761,7 @@ async def entrypoint(ctx: agents.JobContext):
     if should_dial:
         logger.info(f"Initiating outbound SIP call to {phone_number}...")
         try:
+            _t_dial = time.perf_counter()
             await ctx.api.sip.create_sip_participant(
                 api.CreateSIPParticipantRequest(
                     room_name=ctx.room.name,
@@ -717,14 +771,18 @@ async def entrypoint(ctx: agents.JobContext):
                     wait_until_answered=True,
                 )
             )
-            logger.info("Call answered! Agent is now listening.")
+            _dial_ms = int((time.perf_counter() - _t_dial) * 1000)
+            logger.info(f"Call answered in {_dial_ms}ms")
             if call_start_time is None:
                 call_start_time = time.time()
             await _notify_dashboard(ctx.room.name, "connected")
 
             # Brief pause for audio pipeline to stabilize
             await asyncio.sleep(1.0)
+            _t_ttfr = time.perf_counter()
             await _safe_generate_reply(session, initial_greeting)
+            _ttfr_ms = int((time.perf_counter() - _t_ttfr) * 1000)
+            logger.info(f"TTFR (greeting generated): {_ttfr_ms}ms")
 
         except Exception as e:
             error_str = str(e)

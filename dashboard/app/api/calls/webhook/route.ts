@@ -162,7 +162,7 @@ export async function POST(request: Request) {
         const { room_name, status, duration_seconds, outcome, error,
                 disposition, sentiment, transcript_preview, transcript, summary, turn_count, notes,
                 campaign_id, phone_number, sip_status, reason, retry_delay_seconds,
-                sheets_meta: sheets_meta_str } = body;
+                sheets_meta: sheets_meta_str, latency } = body;
 
         if (!room_name) {
             return NextResponse.json({ error: 'room_name is required' }, { status: 400 });
@@ -185,7 +185,9 @@ export async function POST(request: Request) {
             if (disposition) summaryUpdate.disposition = disposition;
             if (sentiment) summaryUpdate.sentiment = sentiment;
             if (transcript_preview) summaryUpdate.transcript_preview = transcript_preview;
+            if (transcript) summaryUpdate.transcript = transcript;
             if (turn_count !== undefined) summaryUpdate.turn_count = turn_count;
+            if (latency) summaryUpdate.latency = latency;
 
             const log = await updateCallByRoom(room_name, summaryUpdate);
 
