@@ -270,6 +270,27 @@ Campaigns JSON (version-controlled)
 ---
 
 ## Pipeline Latency Breakdown
+```
+SETUP PHASE:
+  dial_ms = SIP INVITE to answered
+           (typical: 2-4 seconds)
+
+FIRST RESPONSE PHASE:
+  ttfr_ms = Answered to agent's first greeting
+           (typical: 1-2 seconds)
+           ├─ LLM latency (ttft_ms)
+           └─ TTS latency (ttfb_ms)
+
+PER-TURN CONVERSATION PHASE:
+  eou_delay_ms  = VAD silence detection (typical: 400-600ms)
+  stt_ms        = Deepgram transcription (typical: 200-300ms)
+  llm_ttft_ms   = First token from Groq/OpenAI (typical: 200-500ms)
+  llm_duration  = Full response generation (variable)
+  tts_ttfb_ms   = First audio byte from TTS (typical: 200-400ms)
+  tts_duration  = Full synthesis time (variable)
+
+TARGET: End-to-end < 1.5 seconds per turn
+```
 
 Every completed call records a full latency profile across the voice pipeline:
 
