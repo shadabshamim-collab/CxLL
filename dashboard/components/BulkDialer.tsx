@@ -351,11 +351,6 @@ export default function BulkDialer() {
                                 <option value="aura-orion-en">Orion (Male)</option>
                                 <option value="aura-arcas-en">Arcas (Male)</option>
                             </optgroup>
-                            <optgroup label="OpenAI">
-                                <option value="alloy">Alloy</option>
-                                <option value="echo">Echo</option>
-                                <option value="shimmer">Shimmer</option>
-                            </optgroup>
                         </select>
                     </div>
 

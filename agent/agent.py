@@ -341,10 +341,13 @@ def _build_tts(config_provider: str = None, config_voice: str = None):
 
     sarvam_voices = ["anushka", "manisha", "vidya", "arya", "abhilash", "karun", "hitesh"]
     deepgram_voices = ["aura-asteria-en", "aura-luna-en", "aura-orion-en", "aura-arcas-en"]
+    openai_voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
     if config_voice in sarvam_voices:
         provider = "sarvam"
     elif config_voice in deepgram_voices:
         provider = "deepgram"
+    elif config_voice in openai_voices:
+        provider = "openai"
 
     if provider == "cartesia":
         logger.info("Using Cartesia TTS")
@@ -367,7 +370,11 @@ def _build_tts(config_provider: str = None, config_voice: str = None):
     if provider == "elevenlabs":
         api_key = os.getenv("ELEVENLABS_API_KEY")
         if not api_key:
-            logger.warning("ElevenLabs TTS requested but ELEVENLABS_API_KEY not set — falling back to OpenAI")
+            logger.warning("ElevenLabs TTS requested but ELEVENLABS_API_KEY not set — falling back to Sarvam")
+            model = os.getenv("SARVAM_TTS_MODEL", config.SARVAM_MODEL)
+            fallback_voice = os.getenv("SARVAM_VOICE", "anushka")
+            language = os.getenv("SARVAM_LANGUAGE", config.SARVAM_LANGUAGE)
+            return sarvam.TTS(model=model, speaker=fallback_voice, target_language_code=language)
         else:
             voice_id = config_voice or os.getenv("ELEVENLABS_VOICE_ID", config.ELEVENLABS_VOICE_ID)
             model = os.getenv("ELEVENLABS_TTS_MODEL", config.ELEVENLABS_TTS_MODEL)
@@ -393,6 +400,14 @@ def _build_tts(config_provider: str = None, config_voice: str = None):
                 )
             except Exception as e:
                 logger.error(f"Google TTS init failed: {e} — falling back to OpenAI")
+
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        logger.warning(f"OpenAI TTS requested (voice: {config_voice}) but OPENAI_API_KEY not set — falling back to Sarvam")
+        model = os.getenv("SARVAM_TTS_MODEL", config.SARVAM_MODEL)
+        fallback_voice = os.getenv("SARVAM_VOICE", "anushka")
+        language = os.getenv("SARVAM_LANGUAGE", config.SARVAM_LANGUAGE)
+        return sarvam.TTS(model=model, speaker=fallback_voice, target_language_code=language)
 
     logger.info(f"Using OpenAI TTS (Voice: {config_voice})")
     model = os.getenv("OPENAI_TTS_MODEL", "tts-1")
