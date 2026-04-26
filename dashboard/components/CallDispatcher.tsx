@@ -332,8 +332,8 @@ export default function CallDispatcher() {
                                 value={modelProvider}
                                 onChange={(e) => setModelProvider(e.target.value)}
                             >
-                                <option value="groq-fast">Groq Llama 3.1 8B ⚡ (lowest latency)</option>
-                                <option value="groq">Groq Llama 3.3 70B</option>
+                                <option value="groq">Groq Llama 3.3 70B (recommended)</option>
+                                <option value="groq-fast">Groq Llama 3.1 8B ⚡ (short prompts only)</option>
                                 <option value="gemini">Google Gemini 2.5 Flash</option>
                                 <option value="openai">OpenAI (GPT-4o)</option>
                                 <option value="openai-mini">OpenAI (GPT-4o mini)</option>
