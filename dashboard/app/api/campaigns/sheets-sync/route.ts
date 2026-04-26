@@ -64,8 +64,8 @@ async function runSync(campaignId: string | null): Promise<NextResponse> {
     for (const lead of batch) {
         try {
             const userNameSafe = lead.user_name.replace(/['"<>]/g, '');
-            const greeting = campaign.initial_greeting.replace(/\{\{user_name\}\}/g, userNameSafe);
-            const systemPrompt = campaign.system_prompt.replace(/\{\{user_name\}\}/g, userNameSafe);
+            const greeting = (campaign.initial_greeting || '').replace(/\{\{user_name\}\}/g, userNameSafe);
+            const systemPrompt = (campaign.system_prompt || '').replace(/\{\{user_name\}\}/g, userNameSafe);
 
             const newAttemptCount = lead.attempt_count + 1;
 

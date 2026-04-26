@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
         const roomName = `call-${phoneNumber.replace(/\+/g, '')}-${Math.floor(Math.random() * 10000)}`;
 
-        let metadata: Record<string, string> = { phone_number: phoneNumber };
+        let metadata: Record<string, string | number> = { phone_number: phoneNumber };
         let campaignName = 'Custom (No Campaign)';
 
         if (campaignId) {
@@ -110,8 +110,8 @@ export async function POST(request: Request) {
             campaign_id: campaignId || 'custom',
             campaign_name: campaignName,
             metadata,
-            model_provider: metadata.model_provider || 'groq',
-            voice_id: metadata.voice_id || 'aura-asteria-en',
+            model_provider: String(metadata.model_provider || 'groq'),
+            voice_id: String(metadata.voice_id || 'aura-asteria-en'),
             scheduled_at: scheduledAt,
         });
 
@@ -139,8 +139,8 @@ export async function POST(request: Request) {
             campaign_name: campaignName,
             phone_number: phoneNumber,
             room_name: roomName,
-            model_provider: metadata.model_provider || 'groq',
-            voice_id: metadata.voice_id || 'aura-asteria-en',
+            model_provider: String(metadata.model_provider || 'groq'),
+            voice_id: String(metadata.voice_id || 'aura-asteria-en'),
         });
 
         // Store sheets_meta in Redis so the webhook can write the disposition back.

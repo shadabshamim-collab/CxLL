@@ -706,32 +706,38 @@ async def entrypoint(ctx: agents.JobContext):
     _ttfr_ms: int = 0  # Time To First Response: call answered → first agent speech starts
 
     def _on_conversation_item_added(event):
+        # ChatMessage.metrics is a flat TypedDict in SDK 1.5.6:
+        #   user msg:  transcription_delay, end_of_turn_delay
+        #   assistant: llm_node_ttft, tts_node_ttfb, e2e_latency
         try:
             msg = event.item
             metrics = getattr(msg, 'metrics', None)
             if not metrics:
                 return
-            turn: dict = {}
-            stt = metrics.get("stt_metrics")
-            eou = metrics.get("eou_metrics")
-            llm = metrics.get("llm_metrics")
-            tts = metrics.get("tts_metrics")
-            if stt:
-                turn["stt_ms"] = round(stt.duration * 1000)
-                turn["stt_audio_ms"] = round(stt.audio_duration * 1000)
-            if eou:
-                turn["eou_delay_ms"] = round(eou.end_of_utterance_delay * 1000)
-                turn["transcription_delay_ms"] = round(eou.transcription_delay * 1000)
-            if llm:
-                turn["llm_ttft_ms"] = round(llm.ttft * 1000)
-                turn["llm_duration_ms"] = round(llm.duration * 1000)
-                turn["llm_tokens"] = llm.completion_tokens
-            if tts:
-                turn["tts_ttfb_ms"] = round(tts.ttfb * 1000)
-                turn["tts_duration_ms"] = round(tts.duration * 1000)
-            if turn:
+            role = getattr(msg, 'role', None)
+            turn: dict = {"role": role}
+
+            td = metrics.get("transcription_delay")
+            eou = metrics.get("end_of_turn_delay")
+            llm = metrics.get("llm_node_ttft")
+            tts = metrics.get("tts_node_ttfb")
+            e2e = metrics.get("e2e_latency")
+
+            if td is not None:
+                turn["stt_ms"] = round(td * 1000)
+            if eou is not None:
+                turn["eou_delay_ms"] = round(eou * 1000)
+            if llm is not None:
+                turn["llm_ttft_ms"] = round(llm * 1000)
+            if tts is not None:
+                turn["tts_ttfb_ms"] = round(tts * 1000)
+            if e2e is not None:
+                turn["e2e_latency_ms"] = round(e2e * 1000)
+
+            # Only append turns that captured at least one timing field
+            if len(turn) > 1:
                 _turn_latencies.append(turn)
-                logger.debug(f"Turn latency: {turn}")
+                logger.debug(f"Turn latency ({role}): {turn}")
         except Exception as e:
             logger.debug(f"Metrics collection error: {e}")
 
@@ -747,7 +753,7 @@ async def entrypoint(ctx: agents.JobContext):
         # Compute aggregate latency stats from per-turn data
         latency_summary = {"dial_ms": _dial_ms, "ttfr_ms": _ttfr_ms, "turns": _turn_latencies}
         if _turn_latencies:
-            for key in ("stt_ms", "eou_delay_ms", "llm_ttft_ms", "llm_duration_ms", "tts_ttfb_ms", "tts_duration_ms"):
+            for key in ("stt_ms", "eou_delay_ms", "llm_ttft_ms", "tts_ttfb_ms", "e2e_latency_ms"):
                 vals = [t[key] for t in _turn_latencies if key in t]
                 if vals:
                     latency_summary[f"avg_{key}"] = round(sum(vals) / len(vals))

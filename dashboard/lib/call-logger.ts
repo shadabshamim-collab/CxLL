@@ -10,13 +10,14 @@ export interface LatencyData {
     avg_stt_ms?: number;
     avg_eou_delay_ms?: number;
     avg_llm_ttft_ms?: number;
-    avg_llm_duration_ms?: number;
     avg_tts_ttfb_ms?: number;
-    avg_tts_duration_ms?: number;
+    avg_e2e_latency_ms?: number;
     min_stt_ms?: number; max_stt_ms?: number;
+    min_eou_delay_ms?: number; max_eou_delay_ms?: number;
     min_llm_ttft_ms?: number; max_llm_ttft_ms?: number;
     min_tts_ttfb_ms?: number; max_tts_ttfb_ms?: number;
-    turns?: Array<Record<string, number>>;
+    min_e2e_latency_ms?: number; max_e2e_latency_ms?: number;
+    turns?: Array<Record<string, number | string>>;
 }
 
 export interface CallLog {
@@ -60,6 +61,26 @@ function readFileLogs(): CallLog[] {
 function writeFileLogs(logs: CallLog[]) {
     ensureFile();
     fs.writeFileSync(LOGS_FILE, JSON.stringify(logs, null, 2), 'utf-8');
+}
+
+// Calls stuck in "dispatched"/"connected" past this window are treated as
+// failed (the agent likely crashed before reporting completion).
+const STALE_CALL_TIMEOUT_MS = 10 * 60 * 1000;
+
+function reapStaleCalls(logs: CallLog[]): CallLog[] {
+    const now = Date.now();
+    let mutated = false;
+    for (const log of logs) {
+        if (log.status !== 'dispatched' && log.status !== 'connected') continue;
+        const ts = new Date(log.dispatched_at).getTime();
+        if (Number.isNaN(ts) || now - ts < STALE_CALL_TIMEOUT_MS) continue;
+        log.status = 'failed';
+        log.completed_at = log.completed_at || new Date(ts + STALE_CALL_TIMEOUT_MS).toISOString();
+        log.error = log.error || 'Stale: agent never reported completion (timed out)';
+        mutated = true;
+    }
+    if (mutated) writeFileLogs(logs);
+    return logs;
 }
 
 // ── Airtable mapping ────────────────────────────────────────────────
@@ -212,7 +233,7 @@ export async function getAllCallLogs(filters?: {
         }
     }
 
-    let logs = readFileLogs();
+    let logs = reapStaleCalls(readFileLogs());
     if (filters?.campaign_id) logs = logs.filter(l => l.campaign_id === filters.campaign_id);
     if (filters?.status) logs = logs.filter(l => l.status === filters.status);
     logs.sort((a, b) => new Date(b.dispatched_at).getTime() - new Date(a.dispatched_at).getTime());
@@ -246,7 +267,7 @@ export async function getCallStats(campaign_id?: string): Promise<{
     } catch { /* Redis unavailable */ }
 
     // File fallback
-    let logs = readFileLogs();
+    let logs = reapStaleCalls(readFileLogs());
     if (campaign_id) logs = logs.filter(l => l.campaign_id === campaign_id);
 
     const completed = logs.filter(l => l.status === 'completed');
